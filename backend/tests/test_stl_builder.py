@@ -35,15 +35,20 @@ def test_single_shell_is_watertight(tmp_path: Path) -> None:
     ]
     out = tmp_path / "guide.stl"
     from build123d import export_stl
-    part = build_wrap_around_shell(121.5, 66.0, holes)
+
+    # 125B face A is 66 x 121.5 mm (portrait).
+    part = build_wrap_around_shell(66.0, 121.5, holes)
     export_stl(part, str(out))
 
     wt, vol, bbox = _watertight(out)
     assert wt, "shell must be watertight"
     assert vol > 0
-    # Outer footprint = face dims + 2*(wall+clearance) = 121.5 + 4.6 = 126.1
-    assert bbox[0][0] == pytest.approx(-63.05, abs=0.05)
-    assert bbox[1][0] == pytest.approx(63.05, abs=0.05)
+    # Outer footprint X = face_w + 2*(wall+clearance) = 66 + 4.6 = 70.6
+    assert bbox[0][0] == pytest.approx(-35.3, abs=0.05)
+    assert bbox[1][0] == pytest.approx(35.3, abs=0.05)
+    # Outer footprint Y = face_h + 2*(wall+clearance) = 121.5 + 4.6 = 126.1
+    assert bbox[0][1] == pytest.approx(-63.05, abs=0.05)
+    assert bbox[1][1] == pytest.approx(63.05, abs=0.05)
     # Z extent = total_h = skirt_h (5) + top_t (3) = 8, span [-5, +3]
     assert bbox[0][2] == pytest.approx(-5.0, abs=0.05)
     assert bbox[1][2] == pytest.approx(3.0, abs=0.05)

@@ -2,6 +2,7 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-d
 import { AppShell } from "@/layout/AppShell";
 import { HomePage } from "@/pages/HomePage";
 import { ProjectPage } from "@/pages/ProjectPage";
+import { DrillTab } from "@/pages/project/DrillTab";
 import { OverviewTab } from "@/pages/project/OverviewTab";
 import { PlaceholderTab } from "@/pages/project/PlaceholderTab";
 
@@ -14,15 +15,7 @@ export function App() {
           <Route path="projects/:slug" element={<ProjectPage />}>
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<OverviewTab />} />
-            <Route
-              path="drill"
-              element={
-                <PlaceholderTab
-                  title="Drill designer"
-                  description="SVG unfolded enclosure with click-to-place / drag-to-reposition holes and per-face STL export. Arriving in the next commit."
-                />
-              }
-            />
+            <Route path="drill" element={<DrillTab />} />
             <Route
               path="bom"
               element={
