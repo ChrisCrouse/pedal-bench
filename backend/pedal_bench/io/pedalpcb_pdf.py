@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Iterable
 
-from app.core.models import BOMItem
+from pedal_bench.core.models import BOMItem
 
 # Column header aliases (PedalPCB variants spotted in the wild).
 _HEADER_LOCATION = {"LOCATION", "LOC", "REFDES"}

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from app.core.models import Enclosure, Hole
-from app.io.stl_builder import (
+from pedal_bench.core.models import Enclosure, Hole
+from pedal_bench.io.stl_builder import (
     build_wrap_around_shell,
     export_all_face_guides,
     export_face_guide_stl,
@@ -16,7 +16,7 @@ from app.io.stl_builder import (
 @pytest.fixture(scope="module")
 def enclosures() -> dict[str, Enclosure]:
     data = json.loads(
-        (Path(__file__).parent.parent / "app" / "data" / "enclosures.json").read_text(
+        (Path(__file__).parent.parent / "pedal_bench" / "data" / "enclosures.json").read_text(
             encoding="utf-8"
         )
     )
@@ -94,10 +94,10 @@ def test_zero_holes_still_produces_valid_shell(tmp_path: Path, enclosures: dict[
 
 
 def test_powder_coat_margin_enlarges_hole() -> None:
-    from app.io.stl_builder import build_face_guide
+    from pedal_bench.io.stl_builder import build_face_guide  # noqa: F401
     encs_key = "125B"
     data = json.loads(
-        (Path(__file__).parent.parent / "app" / "data" / "enclosures.json").read_text(
+        (Path(__file__).parent.parent / "pedal_bench" / "data" / "enclosures.json").read_text(
             encoding="utf-8"
         )
     )

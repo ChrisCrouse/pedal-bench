@@ -6,6 +6,23 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Build artifacts
+backend/build/
+backend/*.egg-info/
+
+# User build data — each user owns their projects/ folder
+projects/*
+!projects/.gitkeep
+
+# User inventory is personal
+inventory.json
+
 # Personal scratch notes (not for the repo)
 projectnotes.txt
 

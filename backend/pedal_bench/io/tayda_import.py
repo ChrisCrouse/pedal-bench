@@ -32,7 +32,7 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
-from app.core.models import Hole, VALID_SIDE
+from pedal_bench.core.models import Hole, VALID_SIDE
 
 
 class TaydaParseError(ValueError):

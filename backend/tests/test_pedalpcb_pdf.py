@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from app.io.pedalpcb_pdf import (
+from pedal_bench.io.pedalpcb_pdf import (
     _find_header,
     _rows_to_items,
     extract_bom,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.io.tayda_import import (
+from pedal_bench.io.tayda_import import (
     TaydaParseError,
     parse_tayda_csv,
     parse_tayda_json,

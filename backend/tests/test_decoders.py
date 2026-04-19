@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from app.core.decoders import (
+from pedal_bench.core.decoders import (
     bands_to_resistor,
     capacitor_display,
     capacitor_to_text,

@@ -23,7 +23,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 
-from app.core.models import Enclosure, Hole, Side
+from pedal_bench.core.models import Enclosure, Hole, Side
 
 if TYPE_CHECKING:
     from build123d import Part  # pragma: no cover
