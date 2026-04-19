@@ -1,0 +1,55 @@
+{
+  "_comment": "Default suppliers. Order matters for the 'preferred supplier' fallback in shopping lists. Override per-InventoryItem when a specific part is only available or much cheaper elsewhere.",
+
+  "suppliers": {
+    "tayda": {
+      "name": "Tayda Electronics",
+      "url": "https://www.taydaelectronics.com",
+      "domain": "generic components, enclosures, footswitches, jacks",
+      "location": "Thailand",
+      "shipping_notes": "Cheap parts, slower international shipping (~2 weeks). Free domestic orders over threshold.",
+      "good_for": ["resistors", "caps", "diodes", "generic ICs", "enclosures", "footswitches", "jacks", "pots"]
+    },
+    "mouser": {
+      "name": "Mouser Electronics",
+      "url": "https://www.mouser.com",
+      "domain": "precision electronics, specialty ICs, everything",
+      "location": "USA",
+      "shipping_notes": "Fast shipping, higher minimums before free. Authoritative datasheets.",
+      "good_for": ["specialty ICs", "audio op-amps", "MOSFETs", "precision resistors", "film caps"]
+    },
+    "small_bear": {
+      "name": "Small Bear Electronics",
+      "url": "https://smallbear-electronics.mybigcommerce.com",
+      "domain": "boutique pedal parts",
+      "location": "USA",
+      "shipping_notes": "Curated for pedal builders. Higher prices but quality selection.",
+      "good_for": ["vintage transistors", "germanium diodes", "pot shafts", "knobs", "true-bypass footswitches"]
+    },
+    "pedal_parts_plus": {
+      "name": "Pedal Parts Plus",
+      "url": "https://www.pedalpartsplus.com",
+      "domain": "pedal-focused supplier",
+      "location": "USA",
+      "shipping_notes": "Mid-priced, US-fast.",
+      "good_for": ["enclosures", "knobs", "footswitches", "pre-drilled enclosures"]
+    },
+    "love_my_switches": {
+      "name": "Love My Switches",
+      "url": "https://www.lovemyswitches.com",
+      "domain": "switches, jacks, hardware",
+      "location": "USA",
+      "shipping_notes": "Specialist — switches are their bread and butter.",
+      "good_for": ["footswitches", "toggle switches", "jacks", "DC jacks"]
+    },
+    "stompbox_parts": {
+      "name": "Stomp Box Parts",
+      "url": "https://stompboxparts.com",
+      "domain": "pedal parts, enclosures, knobs",
+      "location": "USA",
+      "good_for": ["enclosures", "knobs", "powder-coated enclosures"]
+    }
+  },
+
+  "preferred_order": ["tayda", "mouser", "small_bear", "pedal_parts_plus", "love_my_switches", "stompbox_parts"]
+}

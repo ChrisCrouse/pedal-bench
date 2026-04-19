@@ -1,0 +1,28 @@
+{
+  "_comment": "Bench-mode orientation hints. `defaults` matches BOM type strings by keyword; `pedals` provides per-location overrides keyed by project slug. A BOMItem's explicit orientation_hint (set via double-click in the bench view) always wins.",
+
+  "defaults": {
+    "signal diode":        "Band = cathode \u2014 match the stripe on the PCB silkscreen",
+    "schottky diode":      "Band = cathode \u2014 match the stripe on the PCB silkscreen",
+    "zener diode":         "Band = cathode",
+    "diode":               "Band = cathode \u2014 match the stripe on the PCB silkscreen",
+    "electrolytic":        "+ leg (longer) \u2192 + marked pad on PCB",
+    "tantalum":            "+ mark on cap \u2192 + marked pad on PCB",
+    "op-amp":              "Notch / dot = pin 1",
+    "opamp":               "Notch / dot = pin 1",
+    "dip":                 "Notch / dot = pin 1",
+    "bjt transistor":      "Flat side matches the flat on the PCB silkscreen",
+    "jfet":                "Flat side matches the flat on the PCB silkscreen",
+    "mosfet":              "Flat side matches the flat on the PCB silkscreen",
+    "transistor":          "Flat side matches the flat on the PCB silkscreen",
+    "led":                 "+ leg (longer) = anode \u2192 + pad on PCB"
+  },
+
+  "pedals": {
+    "sherwood-overdrive": {
+      "_notes": "PedalPCB Sherwood Overdrive 125B \u2014 fill in as you build. Defaults from the table above apply unless overridden here.",
+      "IC1": "OPA2134PA: notch faces toward the pots (see PCB silkscreen)",
+      "D100": "1N5817 Schottky: band toward the DC jack + pad (reverse-polarity protection)"
+    }
+  }
+}

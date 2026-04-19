@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Personal scratch notes (not for the repo)
+projectnotes.txt
+
+# User data stays in-repo (small JSON) — do not ignore `projects/` or
+# `inventory.json`. Do ignore generated STLs if you prefer to regenerate:
+# projects/*/drill/*.stl

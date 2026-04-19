@@ -1,0 +1,8 @@
+pdfplumber>=0.11
+pypdfium2>=4.30
+build123d>=0.7
+Pillow>=10
+
+# Dev-only (tests):
+# trimesh>=4.0
+# pytest>=8.0
