@@ -12,6 +12,9 @@ frontend/dist/
 frontend/.vite/
 *.tsbuildinfo
 
+# Root workspace lockfile only (no node_modules committed)
+# (node_modules/ already ignored above)
+
 # Build artifacts
 backend/build/
 backend/*.egg-info/

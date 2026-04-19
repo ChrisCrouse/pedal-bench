@@ -1,0 +1,20 @@
+{
+  "name": "pedal-bench-workspace",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Workspace scripts for pedal-bench (runs in PowerShell, cmd, or bash).",
+  "scripts": {
+    "setup": "npm run setup:backend && npm run setup:frontend",
+    "setup:backend": "python -m venv .venv && .venv/Scripts/python.exe -m pip install --upgrade pip && .venv/Scripts/python.exe -m pip install -e backend[dev]",
+    "setup:frontend": "cd frontend && npm install",
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": ".venv/Scripts/python.exe -m uvicorn pedal_bench.api.app:app --host 127.0.0.1 --port 8642 --reload --app-dir backend",
+    "dev:frontend": "cd frontend && npm run dev",
+    "test": ".venv/Scripts/python.exe -m pytest backend/tests -q",
+    "typecheck": "cd frontend && npm run typecheck",
+    "build": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

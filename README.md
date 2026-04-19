@@ -29,38 +29,39 @@ record and rationale.
 
 ## Setup
 
-```bash
-make install
-```
+Works from PowerShell, cmd, or bash:
 
-This creates `.venv/`, installs the backend in editable mode
-(`pip install -e "backend[dev]"`), and runs `npm install` in the frontend.
+```bash
+npm install        # first — installs the workspace dev tooling (concurrently)
+npm run setup      # creates .venv, pip-installs backend, npm-installs frontend
+```
 
 ## Run
 
 ```bash
-make dev
+npm run dev
 ```
 
-Starts:
+Starts both servers in one terminal with prefixed output:
 - FastAPI on **http://127.0.0.1:8642** (API docs at `/docs`)
 - Vite on **http://127.0.0.1:5173** (open this in your browser)
 
 The Vite dev server proxies `/api/*` to the backend, so everything is
 same-origin during development.
 
-Stop with Ctrl+C.
+Stop with Ctrl+C — both servers terminate.
 
 ## Other commands
 
 ```bash
-make backend      # run only the FastAPI server
-make frontend     # run only the Vite dev server
-make test         # run the Python test suite
-make typecheck    # run `tsc --noEmit` on the frontend
-make build        # production build of the frontend
-make clean        # wipe .venv, node_modules, dist, caches
+npm run dev:backend    # only FastAPI
+npm run dev:frontend   # only Vite
+npm run test           # Python test suite (pytest)
+npm run typecheck      # `tsc --noEmit` on the frontend
+npm run build          # production build of the frontend
 ```
+
+A `Makefile` is also provided for git bash / WSL users — same targets.
 
 ## Repo layout
 
