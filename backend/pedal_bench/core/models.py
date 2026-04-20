@@ -108,6 +108,28 @@ class BOMItem:
         )
 
 
+IconKind = Literal[
+    "pot",
+    "chicken-head",
+    "footswitch",
+    "toggle",
+    "led",
+    "jack",
+    "dc-jack",
+    "expression",
+]
+VALID_ICONS: tuple[IconKind, ...] = (
+    "pot",
+    "chicken-head",
+    "footswitch",
+    "toggle",
+    "led",
+    "jack",
+    "dc-jack",
+    "expression",
+)
+
+
 @dataclass
 class Hole:
     side: Side
@@ -116,6 +138,7 @@ class Hole:
     diameter_mm: float
     label: Optional[str] = None
     powder_coat_margin: bool = True
+    icon: Optional[IconKind] = None
 
     def __post_init__(self) -> None:
         if self.side not in VALID_SIDE:
@@ -124,6 +147,10 @@ class Hole:
             )
         if self.diameter_mm <= 0:
             raise ValueError(f"Hole.diameter_mm must be positive, got {self.diameter_mm}")
+        if self.icon is not None and self.icon not in VALID_ICONS:
+            raise ValueError(
+                f"Hole.icon must be one of {VALID_ICONS} or None, got {self.icon!r}"
+            )
 
     def effective_diameter_mm(self) -> float:
         return self.diameter_mm + (0.4 if self.powder_coat_margin else 0.0)
@@ -138,10 +165,17 @@ class Hole:
         }
         if self.label is not None:
             d["label"] = self.label
+        if self.icon is not None:
+            d["icon"] = self.icon
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Hole":
+        icon = d.get("icon")
+        if icon is not None and icon not in VALID_ICONS:
+            # Ignore unknown icons rather than fail load — lets newer icon
+            # values survive round-trip through older backends. Log-worthy.
+            icon = None
         return cls(
             side=d["side"],
             x_mm=float(d["x_mm"]),
@@ -149,6 +183,7 @@ class Hole:
             diameter_mm=float(d["diameter_mm"]),
             label=d.get("label"),
             powder_coat_margin=bool(d.get("powder_coat_margin", True)),
+            icon=icon,
         )
 
 

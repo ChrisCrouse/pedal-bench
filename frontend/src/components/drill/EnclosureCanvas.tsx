@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Enclosure, Hole } from "@/api/client";
+import type { Enclosure, Hole, IconKind } from "@/api/client";
 import {
   faceToLayout,
   isOverflowing,
   layoutToFace,
-  snapTenth,
   unfoldedLayout,
   type FaceLayout,
 } from "./geometry";
+import { ICON_DEFAULT_DIAMETER, paletteFor, renderIconGlyph } from "./icons";
+import {
+  getGuideForSide,
+  snapToGuides,
+  type SnapGuides,
+} from "./snap";
 
 interface Props {
   enclosure: Enclosure;
@@ -17,15 +22,20 @@ interface Props {
   onAdd: (hole: Hole) => void;
   onMove: (idx: number, x_mm: number, y_mm: number) => void;
   onChangeDiameter: (idx: number, diameter_mm: number) => void;
+  /** Default icon to assign to holes created by click. */
+  defaultIcon: IconKind | null;
+  /** When enabled, snap guides render and drag/place snap to them. */
+  snapEnabled: boolean;
+  snapGuides: SnapGuides | null;
 }
 
 /**
  * SVG unfolded-enclosure canvas.
  *
  * Interactions:
- * - Click on an empty area of a face → add a new hole there.
+ * - Click on an empty area of a face → add a new hole (default icon applied).
  * - Click on an existing hole → select it.
- * - Drag a selected hole → reposition it, snapping to 0.1 mm.
+ * - Drag a selected hole → reposition with snap if enabled.
  * - Mouse wheel over a hole → adjust diameter (±0.5 mm; Shift ±0.1; Ctrl ±1).
  * - Click background (outside any face) → deselect.
  */
@@ -37,6 +47,9 @@ export function EnclosureCanvas({
   onAdd,
   onMove,
   onChangeDiameter,
+  defaultIcon,
+  snapEnabled,
+  snapGuides,
 }: Props) {
   const layout = useMemo(() => unfoldedLayout(enclosure), [enclosure]);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -72,9 +85,11 @@ export function EnclosureCanvas({
       const faceLayout = layout.faces.find((f) => f.side === hole.side);
       if (!faceLayout) return;
       // Use the face the hole is assigned to (preserve side).
-      const localX = snapTenth(p.x - faceLayout.centerX);
-      const localY = snapTenth(-(p.y - faceLayout.centerY));
-      onMove(dragIdx, localX, localY);
+      const rawX = p.x - faceLayout.centerX;
+      const rawY = -(p.y - faceLayout.centerY); // flip to Tayda convention
+      const snapGuide = getGuideForSide(snapGuides, enclosure.key, hole.side);
+      const { x_mm, y_mm } = snapToGuides(snapEnabled, snapGuide, rawX, rawY);
+      onMove(dragIdx, x_mm, y_mm);
     };
     const onUp = () => setDragIdx(null);
     window.addEventListener("mousemove", onMove_);
@@ -83,7 +98,16 @@ export function EnclosureCanvas({
       window.removeEventListener("mousemove", onMove_);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragIdx, holes, layout, clientToLayout, onMove]);
+  }, [
+    dragIdx,
+    holes,
+    layout,
+    clientToLayout,
+    onMove,
+    snapEnabled,
+    snapGuides,
+    enclosure.key,
+  ]);
 
   const handleBackgroundClick = (e: React.MouseEvent) => {
     const p = clientToLayout(e.clientX, e.clientY);
@@ -94,13 +118,24 @@ export function EnclosureCanvas({
       return;
     }
     // Click inside a face → create a new hole at this position.
+    const snapGuide = getGuideForSide(snapGuides, enclosure.key, hit.face.side);
+    const { x_mm, y_mm } = snapToGuides(
+      snapEnabled,
+      snapGuide,
+      hit.x_mm,
+      hit.y_mm,
+    );
+    const diameter = defaultIcon
+      ? ICON_DEFAULT_DIAMETER[defaultIcon]
+      : 7.2;
     onAdd({
       side: hit.face.side,
-      x_mm: snapTenth(hit.x_mm),
-      y_mm: snapTenth(hit.y_mm),
-      diameter_mm: 7.2,
+      x_mm,
+      y_mm,
+      diameter_mm: diameter,
       label: null,
       powder_coat_margin: true,
+      icon: defaultIcon,
     });
   };
 
@@ -118,7 +153,7 @@ export function EnclosureCanvas({
     const delta = e.deltaY < 0 ? +step : -step;
     const hole = holes[idx];
     if (!hole) return;
-    const next = Math.max(0.5, snapTenth(hole.diameter_mm + delta));
+    const next = Math.max(0.5, Math.round((hole.diameter_mm + delta) * 10) / 10);
     onChangeDiameter(idx, next);
   };
 
@@ -130,10 +165,7 @@ export function EnclosureCanvas({
         preserveAspectRatio="xMidYMid meet"
         className="h-full w-full select-none"
         onMouseDown={handleBackgroundClick}
-        // Disable wheel passive listener on SVG root via onWheel directly
         onWheelCapture={(e) => {
-          // Only stop propagation; let individual hole handlers deal with it.
-          // If we wheel outside a hole, allow page scroll.
           if ((e.target as SVGElement).tagName === "circle") e.preventDefault();
         }}
       >
@@ -159,6 +191,20 @@ export function EnclosureCanvas({
           <FaceRect key={f.side} face={f} />
         ))}
 
+        {/* Snap guides (face-local) rendered behind holes */}
+        {snapEnabled &&
+          layout.faces.map((f) => {
+            const guide = getGuideForSide(snapGuides, enclosure.key, f.side);
+            if (!guide) return null;
+            return (
+              <SnapGuideOverlay
+                key={`snap-${f.side}`}
+                face={f}
+                guide={guide}
+              />
+            );
+          })}
+
         {holes.map((h, idx) => {
           const faceLayout = layout.faces.find((f) => f.side === h.side);
           if (!faceLayout) return null;
@@ -166,58 +212,16 @@ export function EnclosureCanvas({
           const overflow = isOverflowing(faceLayout.dims, h.x_mm, h.y_mm, h.diameter_mm);
           const isSelected = idx === selectedIdx;
           return (
-            <g key={idx}>
-              {/* Target crosshair on selected hole for precise placement feel */}
-              {isSelected && (
-                <>
-                  <line
-                    x1={x - h.diameter_mm / 2 - 2}
-                    y1={y}
-                    x2={x + h.diameter_mm / 2 + 2}
-                    y2={y}
-                    stroke="#10b981"
-                    strokeWidth="0.4"
-                    strokeDasharray="1 1"
-                  />
-                  <line
-                    x1={x}
-                    y1={y - h.diameter_mm / 2 - 2}
-                    x2={x}
-                    y2={y + h.diameter_mm / 2 + 2}
-                    stroke="#10b981"
-                    strokeWidth="0.4"
-                    strokeDasharray="1 1"
-                  />
-                </>
-              )}
-              <circle
-                cx={x}
-                cy={y}
-                r={h.diameter_mm / 2}
-                className={[
-                  "cursor-grab",
-                  overflow
-                    ? "fill-red-500/70 stroke-red-700"
-                    : isSelected
-                      ? "fill-emerald-500/70 stroke-emerald-700"
-                      : "fill-blue-500/70 stroke-blue-700",
-                ].join(" ")}
-                strokeWidth="0.4"
-                onMouseDown={handleHoleMouseDown(idx)}
-                onWheel={handleHoleWheel(idx)}
-              />
-              {h.label && (
-                <text
-                  x={x}
-                  y={y + h.diameter_mm / 2 + 3.5}
-                  textAnchor="middle"
-                  className="pointer-events-none fill-zinc-700 dark:fill-zinc-300"
-                  style={{ fontSize: 3, fontFamily: "Segoe UI, sans-serif" }}
-                >
-                  {h.label}
-                </text>
-              )}
-            </g>
+            <HoleGlyph
+              key={idx}
+              hole={h}
+              x={x}
+              y={y}
+              isSelected={isSelected}
+              isOverflowing={overflow}
+              onMouseDown={handleHoleMouseDown(idx)}
+              onWheel={handleHoleWheel(idx)}
+            />
           );
         })}
       </svg>
@@ -279,6 +283,144 @@ function FaceRect({ face }: { face: FaceLayout }) {
         strokeWidth="0.15"
         className="text-zinc-400"
       />
+    </g>
+  );
+}
+
+function SnapGuideOverlay({
+  face,
+  guide,
+}: {
+  face: FaceLayout;
+  guide: { vertical_lines_mm: number[]; horizontal_lines_mm: number[] };
+}) {
+  const left = face.centerX - face.dims.width_mm / 2;
+  const right = face.centerX + face.dims.width_mm / 2;
+  const top = face.centerY - face.dims.height_mm / 2;
+  const bottom = face.centerY + face.dims.height_mm / 2;
+  return (
+    <g>
+      {guide.vertical_lines_mm.map((xOffset, i) => {
+        const x = face.centerX + xOffset; // vertical line at face_center_x + offset
+        if (x <= left || x >= right) return null;
+        return (
+          <line
+            key={`v-${i}`}
+            x1={x}
+            y1={top}
+            x2={x}
+            y2={bottom}
+            stroke="#10b981"
+            strokeWidth="0.15"
+            strokeDasharray="0.6 0.8"
+            opacity={xOffset === 0 ? 0.55 : 0.35}
+          />
+        );
+      })}
+      {guide.horizontal_lines_mm.map((yOffset, i) => {
+        // Tayda Y+ is up; SVG Y+ is down. So layout_y = face_center_y - yOffset.
+        const y = face.centerY - yOffset;
+        if (y <= top || y >= bottom) return null;
+        return (
+          <line
+            key={`h-${i}`}
+            x1={left}
+            y1={y}
+            x2={right}
+            y2={y}
+            stroke="#10b981"
+            strokeWidth="0.15"
+            strokeDasharray="0.6 0.8"
+            opacity={yOffset === 0 ? 0.55 : 0.35}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+function HoleGlyph({
+  hole,
+  x,
+  y,
+  isSelected,
+  isOverflowing,
+  onMouseDown,
+  onWheel,
+}: {
+  hole: Hole;
+  x: number;
+  y: number;
+  isSelected: boolean;
+  isOverflowing: boolean;
+  onMouseDown: (e: React.MouseEvent) => void;
+  onWheel: (e: React.WheelEvent) => void;
+}) {
+  const palette = paletteFor(hole.icon);
+  const fillColor = isOverflowing
+    ? "rgba(239,68,68,0.7)"
+    : isSelected
+      ? "rgba(16,185,129,0.75)"
+      : palette.fill + "b8"; // append alpha ~72%
+  const strokeColor = isOverflowing
+    ? "#991b1b"
+    : isSelected
+      ? "#065f46"
+      : palette.stroke;
+
+  return (
+    <g>
+      {isSelected && (
+        <>
+          <line
+            x1={x - hole.diameter_mm / 2 - 2}
+            y1={y}
+            x2={x + hole.diameter_mm / 2 + 2}
+            y2={y}
+            stroke="#10b981"
+            strokeWidth="0.4"
+            strokeDasharray="1 1"
+          />
+          <line
+            x1={x}
+            y1={y - hole.diameter_mm / 2 - 2}
+            x2={x}
+            y2={y + hole.diameter_mm / 2 + 2}
+            stroke="#10b981"
+            strokeWidth="0.4"
+            strokeDasharray="1 1"
+          />
+        </>
+      )}
+      <circle
+        cx={x}
+        cy={y}
+        r={hole.diameter_mm / 2}
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={0.4}
+        className="cursor-grab"
+        onMouseDown={onMouseDown}
+        onWheel={onWheel}
+      />
+      {/* Icon glyph (hit-transparent so drag/click still target the circle) */}
+      <g
+        transform={`translate(${x} ${y})`}
+        pointerEvents="none"
+      >
+        {renderIconGlyph(hole.icon ?? null, hole.diameter_mm, isSelected)}
+      </g>
+      {hole.label && (
+        <text
+          x={x}
+          y={y + hole.diameter_mm / 2 + 3.5}
+          textAnchor="middle"
+          className="pointer-events-none fill-zinc-700 dark:fill-zinc-300"
+          style={{ fontSize: 3, fontFamily: "Segoe UI, sans-serif" }}
+        >
+          {hole.label}
+        </text>
+      )}
     </g>
   );
 }

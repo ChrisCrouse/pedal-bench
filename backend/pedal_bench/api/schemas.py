@@ -15,6 +15,16 @@ Status = Literal["planned", "ordered", "building", "finishing", "done"]
 BuildPhase = Literal["pcb", "drill", "finish", "wiring", "test"]
 Side = Literal["A", "B", "C", "D", "E"]
 Tracking = Literal["per_value", "bucket"]
+IconKind = Literal[
+    "pot",
+    "chicken-head",
+    "footswitch",
+    "toggle",
+    "led",
+    "jack",
+    "dc-jack",
+    "expression",
+]
 
 
 class FaceDimsOut(BaseModel):
@@ -53,6 +63,7 @@ class HoleIO(BaseModel):
     diameter_mm: float = Field(gt=0)
     label: str | None = None
     powder_coat_margin: bool = True
+    icon: IconKind | None = None
 
 
 class BuildProgressIO(BaseModel):

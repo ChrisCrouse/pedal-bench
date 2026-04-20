@@ -8,6 +8,15 @@
 export type Side = "A" | "B" | "C" | "D" | "E";
 export type Status = "planned" | "ordered" | "building" | "finishing" | "done";
 export type BuildPhase = "pcb" | "drill" | "finish" | "wiring" | "test";
+export type IconKind =
+  | "pot"
+  | "chicken-head"
+  | "footswitch"
+  | "toggle"
+  | "led"
+  | "jack"
+  | "dc-jack"
+  | "expression";
 
 export interface FaceDims {
   width_mm: number;
@@ -33,6 +42,26 @@ export interface Hole {
   diameter_mm: number;
   label: string | null;
   powder_coat_margin: boolean;
+  icon?: IconKind | null;
+}
+
+export interface SnapGuide {
+  vertical_lines_mm: number[];
+  horizontal_lines_mm: number[];
+}
+
+export interface LayoutPreset {
+  id: string;
+  enclosure: string;
+  category: "jacks" | "controls" | "combined" | string;
+  name: string;
+  description: string;
+  holes: Hole[];
+}
+
+export interface LayoutPresetsResponse {
+  presets: LayoutPreset[];
+  snap_guides: Record<string, Record<string, SnapGuide>>;
 }
 
 export interface BOMItem {
@@ -151,6 +180,9 @@ export const api = {
   },
   debug: {
     dataset: () => request<DebugDataset>("/debug/dataset"),
+  },
+  layoutPresets: {
+    all: () => request<LayoutPresetsResponse>("/layout-presets"),
   },
   enclosures: {
     list: () => request<Enclosure[]>("/enclosures"),

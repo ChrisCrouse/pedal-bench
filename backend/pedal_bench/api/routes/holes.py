@@ -41,6 +41,7 @@ def replace_holes(
                 diameter_mm=h.diameter_mm,
                 label=h.label,
                 powder_coat_margin=h.powder_coat_margin,
+                icon=h.icon,
             )
             for h in payload.holes
         ]

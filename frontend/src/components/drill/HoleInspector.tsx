@@ -1,5 +1,6 @@
-import type { Enclosure, Hole, Side } from "@/api/client";
+import type { Enclosure, Hole, IconKind, Side } from "@/api/client";
 import { isOverflowing } from "./geometry";
+import { ICON_DEFAULT_DIAMETER, ICON_KINDS, ICON_LABELS, paletteFor } from "./icons";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -9,9 +10,10 @@ interface Props {
   hole: Hole | null;
   onChange: (patch: Partial<Hole>) => void;
   onDelete: () => void;
+  onMirror: (mode: "x" | "y" | "ce") => void;
 }
 
-export function HoleInspector({ enclosure, hole, onChange, onDelete }: Props) {
+export function HoleInspector({ enclosure, hole, onChange, onDelete, onMirror }: Props) {
   if (!hole) {
     return (
       <div className="px-4 py-6 text-sm text-zinc-500">
@@ -29,6 +31,24 @@ export function HoleInspector({ enclosure, hole, onChange, onDelete }: Props) {
     : false;
   const effective = hole.diameter_mm + (hole.powder_coat_margin ? 0.4 : 0);
 
+  const setIcon = (next: IconKind | null) => {
+    if (next === null) {
+      onChange({ icon: null });
+      return;
+    }
+    // When picking an icon, also snap the diameter to the typical one if
+    // the current diameter matches the previous icon's default (user
+    // hasn't manually changed it).
+    const prevDefault = hole.icon ? ICON_DEFAULT_DIAMETER[hole.icon] : null;
+    const shouldAdoptDefault =
+      prevDefault !== null && Math.abs(hole.diameter_mm - prevDefault) < 0.01;
+    const patch: Partial<Hole> = { icon: next };
+    if (shouldAdoptDefault || hole.icon === null) {
+      patch.diameter_mm = ICON_DEFAULT_DIAMETER[next];
+    }
+    onChange(patch);
+  };
+
   return (
     <div className="space-y-4 px-4 py-4">
       <div className="flex items-center justify-between">
@@ -43,6 +63,10 @@ export function HoleInspector({ enclosure, hole, onChange, onDelete }: Props) {
           This hole falls outside the face boundary.
         </div>
       )}
+
+      <Field label="Icon">
+        <IconPicker value={hole.icon ?? null} onChange={setIcon} />
+      </Field>
 
       <Field label="Side">
         <Select
@@ -106,6 +130,26 @@ export function HoleInspector({ enclosure, hole, onChange, onDelete }: Props) {
         <span>Add 0.4 mm for powder coat</span>
       </label>
 
+      <Field label="Mirror this hole">
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => onMirror("x")} title="Create a twin with x flipped">
+            Mirror X
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => onMirror("y")} title="Create a twin with y flipped">
+            Mirror Y
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={hole.side !== "C" && hole.side !== "E"}
+            onClick={() => onMirror("ce")}
+            title="Duplicate this hole to the opposite side (C ↔ E)"
+          >
+            Mirror C↔E
+          </Button>
+        </div>
+      </Field>
+
       {face && (
         <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
           <div className="font-semibold text-zinc-700 dark:text-zinc-300">
@@ -121,6 +165,90 @@ export function HoleInspector({ enclosure, hole, onChange, onDelete }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function IconPicker({
+  value,
+  onChange,
+}: {
+  value: IconKind | null;
+  onChange: (v: IconKind | null) => void;
+}) {
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      <IconTile
+        label="none"
+        color="#a1a1aa"
+        selected={value === null}
+        onClick={() => onChange(null)}
+      />
+      {ICON_KINDS.map((k) => (
+        <IconTile
+          key={k}
+          label={shortLabel(k)}
+          tooltip={ICON_LABELS[k]}
+          color={paletteFor(k).fill}
+          selected={value === k}
+          onClick={() => onChange(k)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function shortLabel(k: IconKind): string {
+  switch (k) {
+    case "pot":
+      return "Pot";
+    case "chicken-head":
+      return "Chick";
+    case "led":
+      return "LED";
+    case "footswitch":
+      return "FSW";
+    case "toggle":
+      return "Tog";
+    case "jack":
+      return "Jack";
+    case "dc-jack":
+      return "DC";
+    case "expression":
+      return "Exp";
+  }
+}
+
+function IconTile({
+  label,
+  tooltip,
+  color,
+  selected,
+  onClick,
+}: {
+  label: string;
+  tooltip?: string;
+  color: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={tooltip}
+      onClick={onClick}
+      className={[
+        "relative flex h-10 flex-col items-center justify-center gap-0.5 rounded border text-[10px] font-medium transition",
+        selected
+          ? "border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/40 dark:bg-emerald-900/30 dark:text-emerald-200"
+          : "border-zinc-200 bg-white text-zinc-700 hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300",
+      ].join(" ")}
+    >
+      <span
+        className="h-3 w-3 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      <span>{label}</span>
+    </button>
   );
 }
 

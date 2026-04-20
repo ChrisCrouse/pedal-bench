@@ -1,13 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
-import { api, type Hole, type Project, type STLExport } from "@/api/client";
+import {
+  api,
+  type Hole,
+  type IconKind,
+  type Project,
+  type STLExport,
+} from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { EnclosureCanvas } from "@/components/drill/EnclosureCanvas";
 import { HoleInspector } from "@/components/drill/HoleInspector";
 import { PanelArtworkDialog } from "@/components/drill/PanelArtworkDialog";
 import { SmartLayouts } from "@/components/drill/SmartLayouts";
 import { TaydaPasteDialog } from "@/components/drill/TaydaPasteDialog";
+import {
+  NO_MIRROR,
+  canMirrorCE,
+  generateMirrorTwins,
+  mirrorHole,
+  type MirrorMode,
+  type MirrorState,
+} from "@/components/drill/mirrors";
 
 interface Ctx {
   slug: string;
@@ -23,11 +37,21 @@ export function DrillTab() {
     enabled: !!project.enclosure,
   });
 
+  const presetsQuery = useQuery({
+    queryKey: ["layout-presets"],
+    queryFn: api.layoutPresets.all,
+    staleTime: Infinity,
+  });
+  const snapGuides = presetsQuery.data?.snap_guides ?? null;
+
   const [holes, setHoles] = useState<Hole[]>(project.holes);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [artworkOpen, setArtworkOpen] = useState(false);
   const [exportResults, setExportResults] = useState<STLExport[] | null>(null);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [mirrorState, setMirrorState] = useState<MirrorState>(NO_MIRROR);
+  const [defaultIcon, setDefaultIcon] = useState<IconKind | null>("pot");
 
   // Detect dirty state by comparing current holes against the server copy.
   const serverKey = useMemo(() => JSON.stringify(project.holes), [project.holes]);
@@ -86,13 +110,17 @@ export function DrillTab() {
     onSuccess: (results) => setExportResults(results),
   });
 
-  const handleAdd = useCallback((h: Hole) => {
-    setHoles((prev) => {
-      const next = [...prev, h];
-      setSelectedIdx(next.length - 1);
-      return next;
-    });
-  }, []);
+  const handleAdd = useCallback(
+    (h: Hole) => {
+      setHoles((prev) => {
+        const twins = generateMirrorTwins(h, mirrorState);
+        const next = [...prev, h, ...twins];
+        setSelectedIdx(prev.length); // select the seed hole
+        return next;
+      });
+    },
+    [mirrorState],
+  );
 
   const handleMove = useCallback((idx: number, x_mm: number, y_mm: number) => {
     setHoles((prev) => prev.map((h, i) => (i === idx ? { ...h, x_mm, y_mm } : h)));
@@ -118,6 +146,24 @@ export function DrillTab() {
   const importTayda = useCallback((imported: Hole[], mode: "replace" | "append") => {
     setHoles((prev) => (mode === "replace" ? imported : [...prev, ...imported]));
     setSelectedIdx(null);
+  }, []);
+
+  const applyMirrorToSelected = useCallback(
+    (mode: MirrorMode) => {
+      if (selectedIdx === null) return;
+      setHoles((prev) => {
+        const seed = prev[selectedIdx];
+        if (!seed) return prev;
+        if (mode === "ce" && !canMirrorCE(seed.side)) return prev;
+        const twin = mirrorHole(seed, mode);
+        return [...prev, twin];
+      });
+    },
+    [selectedIdx],
+  );
+
+  const toggleMirrorMode = useCallback((mode: MirrorMode) => {
+    setMirrorState((prev) => ({ ...prev, [mode]: !prev[mode] }));
   }, []);
 
   if (!project.enclosure) {
@@ -211,6 +257,12 @@ export function DrillTab() {
             onReplaceAll={setHoles}
             onAppend={(newHoles) => setHoles((prev) => [...prev, ...newHoles])}
             onMutateSelected={mutateSelected}
+            mirrorState={mirrorState}
+            onToggleMirror={toggleMirrorMode}
+            defaultIcon={defaultIcon}
+            onDefaultIconChange={setDefaultIcon}
+            snapEnabled={snapEnabled}
+            onToggleSnap={setSnapEnabled}
           />
         </aside>
 
@@ -223,6 +275,9 @@ export function DrillTab() {
             onAdd={handleAdd}
             onMove={handleMove}
             onChangeDiameter={handleChangeDiameter}
+            defaultIcon={defaultIcon}
+            snapEnabled={snapEnabled}
+            snapGuides={snapGuides}
           />
         </div>
 
@@ -232,6 +287,7 @@ export function DrillTab() {
             hole={selectedHole}
             onChange={mutateSelected}
             onDelete={deleteSelected}
+            onMirror={applyMirrorToSelected}
           />
         </aside>
       </div>

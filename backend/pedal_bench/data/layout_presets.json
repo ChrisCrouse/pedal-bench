@@ -1,0 +1,275 @@
+{
+  "_comment": "Drill-layout preset library + snap-guide sets. Coordinates follow Tayda convention (x+ right, y+ up, from face center). 125B presets are seeded from observed PedalPCB build-doc layouts; other enclosures use common conventions (inch-based symmetric spacing: 12.7 / 25.4 / 38.1 mm, pot-hole 7.2 mm, LED 4.4 or 6.55 mm, jack 9.7 mm, DC 8.1 mm, footswitch 12.2 mm). Expand this file with more researched layouts over time — each preset declares which enclosure it applies to so the UI filters unrealistic options out.",
+
+  "snap_guides": {
+    "125B": {
+      "A": {
+        "vertical_lines_mm":   [-22.0, -20.32, -16.7, -16.5, -15.0, 0, 15.0, 16.5, 16.7, 20.32, 22.0],
+        "horizontal_lines_mm": [-45.1, -38.1, -25.4, -12.7, 0, 12.7, 25.4, 28.2, 38.1]
+      },
+      "B": {
+        "vertical_lines_mm":   [-15.2, 0, 15.2],
+        "horizontal_lines_mm": [-4.4, 0, 5.75, 8.0]
+      },
+      "D": {
+        "vertical_lines_mm":   [0],
+        "horizontal_lines_mm": [0]
+      },
+      "C": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-38.1, 0, 38.1] },
+      "E": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-38.1, 0, 38.1] }
+    },
+    "1590B": {
+      "A": {
+        "vertical_lines_mm":   [-14.0, -12.7, 0, 12.7, 14.0],
+        "horizontal_lines_mm": [-35.0, -25.4, -12.7, 0, 12.7, 25.4, 38.0]
+      },
+      "B": { "vertical_lines_mm": [-14.0, 0, 14.0], "horizontal_lines_mm": [0, 5.75] },
+      "D": { "vertical_lines_mm": [0], "horizontal_lines_mm": [0] },
+      "C": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-35.0, 0, 35.0] },
+      "E": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-35.0, 0, 35.0] }
+    },
+    "1590BB": {
+      "A": {
+        "vertical_lines_mm":   [-30.0, -25.4, -20.32, -12.7, 0, 12.7, 20.32, 25.4, 30.0],
+        "horizontal_lines_mm": [-45.0, -38.1, -25.4, -12.7, 0, 12.7, 25.4, 38.1]
+      },
+      "B": { "vertical_lines_mm": [-30.0, -15.0, 0, 15.0, 30.0], "horizontal_lines_mm": [0, 5.75] },
+      "D": { "vertical_lines_mm": [0], "horizontal_lines_mm": [0] },
+      "C": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-38.1, 0, 38.1] },
+      "E": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-38.1, 0, 38.1] }
+    },
+    "1590DD": {
+      "A": {
+        "vertical_lines_mm":   [-40.0, -30.0, -20.32, -12.7, 0, 12.7, 20.32, 30.0, 40.0],
+        "horizontal_lines_mm": [-75.0, -60.0, -38.1, -25.4, -12.7, 0, 12.7, 25.4, 38.1, 60.0]
+      },
+      "B": { "vertical_lines_mm": [-40.0, -20.0, 0, 20.0, 40.0], "horizontal_lines_mm": [0, 5.75] },
+      "D": { "vertical_lines_mm": [0], "horizontal_lines_mm": [0] },
+      "C": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-60.0, 0, 60.0] },
+      "E": { "vertical_lines_mm": [0], "horizontal_lines_mm": [-60.0, 0, 60.0] }
+    }
+  },
+
+  "presets": [
+    {
+      "id": "125b-top-jacks-standard",
+      "enclosure": "125B",
+      "category": "jacks",
+      "name": "125B — top-mounted jacks (in / out / DC)",
+      "description": "PedalPCB standard: 1/4\" audio jacks at \u00b115.2 mm, slimline DC between them.",
+      "holes": [
+        { "side": "B", "diameter_mm": 9.7, "x_mm": -15.2, "y_mm": 5.75, "label": "INPUT",  "icon": "jack" },
+        { "side": "B", "diameter_mm": 8.1, "x_mm": 0,     "y_mm": -4.4, "label": "DC",     "icon": "dc-jack" },
+        { "side": "B", "diameter_mm": 9.7, "x_mm": 15.2,  "y_mm": 5.75, "label": "OUTPUT", "icon": "jack" }
+      ]
+    },
+    {
+      "id": "125b-2-knob-type-1",
+      "enclosure": "125B",
+      "category": "controls",
+      "name": "125B \u2014 2-knob, type 1",
+      "description": "Two pots at the top row, LED between them, footswitch at the bottom.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -16.5, "y_mm": 38.1,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 16.5,  "y_mm": 38.1,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.55, "x_mm": 0,     "y_mm": 12.7,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -45.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "125b-3-knob-type-1",
+      "enclosure": "125B",
+      "category": "controls",
+      "name": "125B \u2014 3-knob, type 1",
+      "description": "Two top pots, one center pot, LED on top row, footswitch at the bottom.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -16.7, "y_mm": 38.1,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 16.7,  "y_mm": 38.1,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.55, "x_mm": 0,     "y_mm": 38.1,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,     "y_mm": 12.7,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -45.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "125b-4-knob-type-1",
+      "enclosure": "125B",
+      "category": "controls",
+      "name": "125B \u2014 4-knob, 2\u00d72 grid",
+      "description": "Common PedalPCB 4-knob layout (Sherwood Overdrive): 2\u00d72 pot grid, LED center, footswitch at the bottom.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -16.5, "y_mm": 38.1,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 16.5,  "y_mm": 38.1,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -16.5, "y_mm": 12.7,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 16.5,  "y_mm": 12.7,  "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.55, "x_mm": 0,     "y_mm": 25.5,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -45.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "125b-5-knob-type-1",
+      "enclosure": "125B",
+      "category": "controls",
+      "name": "125B \u2014 5-knob, 2 + 3 with center LED up top",
+      "description": "Two pots top corners, three pots middle row, LED at top center, footswitch at the bottom.",
+      "holes": [
+        { "side": "A", "diameter_mm": 6.5,  "x_mm": 0,      "y_mm": 38.1,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -20.32, "y_mm": 38.1,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 20.32,  "y_mm": 38.1,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -20.32, "y_mm": 12.7,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,      "y_mm": 12.7,  "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 20.32,  "y_mm": 12.7,  "label": "POT 5",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,      "y_mm": -45.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "125b-5-knob-type-2",
+      "enclosure": "125B",
+      "category": "controls",
+      "name": "125B \u2014 5-knob, 3 + 2 with center LED middle",
+      "description": "Three pots top row, two pots middle row, LED between middle pots, footswitch at the bottom.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -20.32, "y_mm": 38.1,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,      "y_mm": 38.1,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 20.32,  "y_mm": 38.1,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -20.32, "y_mm": 12.7,  "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,      "y_mm": 12.7,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 20.32,  "y_mm": 12.7,  "label": "POT 5",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,      "y_mm": -45.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "125b-6-knob-type-1",
+      "enclosure": "125B",
+      "category": "controls",
+      "name": "125B \u2014 6-knob, 3\u00d72 with LED between rows",
+      "description": "Three pots per row, LED between the rows on centerline, footswitch at the bottom.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -20.32, "y_mm": 38.1,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,      "y_mm": 38.1,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 20.32,  "y_mm": 38.1,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -20.32, "y_mm": 12.7,  "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,      "y_mm": 12.7,  "label": "POT 5",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 20.32,  "y_mm": 12.7,  "label": "POT 6",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,      "y_mm": 28.2,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,      "y_mm": -45.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+
+    {
+      "id": "1590b-top-jacks",
+      "enclosure": "1590B",
+      "category": "jacks",
+      "name": "1590B \u2014 top-mounted jacks",
+      "description": "Narrower than 125B; jacks tighter toward the edges.",
+      "holes": [
+        { "side": "B", "diameter_mm": 9.7, "x_mm": -14.0, "y_mm": 5.75, "label": "INPUT",  "icon": "jack" },
+        { "side": "B", "diameter_mm": 8.1, "x_mm": 0,     "y_mm": -4.4, "label": "DC",     "icon": "dc-jack" },
+        { "side": "B", "diameter_mm": 9.7, "x_mm": 14.0,  "y_mm": 5.75, "label": "OUTPUT", "icon": "jack" }
+      ]
+    },
+    {
+      "id": "1590b-2-knob",
+      "enclosure": "1590B",
+      "category": "controls",
+      "name": "1590B \u2014 2-knob",
+      "description": "Common tight two-knob layout on a 1590B face.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -12.7, "y_mm": 25.4,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 12.7,  "y_mm": 25.4,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,     "y_mm": 5.0,   "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -35.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590b-3-knob",
+      "enclosure": "1590B",
+      "category": "controls",
+      "name": "1590B \u2014 3-knob triangle",
+      "description": "Two pots top corners, center pot below, LED + footswitch on centerline.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -14.0, "y_mm": 30.0,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 14.0,  "y_mm": 30.0,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,     "y_mm": 10.0,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,     "y_mm": -15.0, "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -38.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+
+    {
+      "id": "1590bb-top-jacks",
+      "enclosure": "1590BB",
+      "category": "jacks",
+      "name": "1590BB \u2014 top-mounted jacks",
+      "description": "Wider enclosure; jacks further apart.",
+      "holes": [
+        { "side": "B", "diameter_mm": 9.7, "x_mm": -30.0, "y_mm": 5.75, "label": "INPUT",  "icon": "jack" },
+        { "side": "B", "diameter_mm": 8.1, "x_mm": 0,     "y_mm": -4.4, "label": "DC",     "icon": "dc-jack" },
+        { "side": "B", "diameter_mm": 9.7, "x_mm": 30.0,  "y_mm": 5.75, "label": "OUTPUT", "icon": "jack" }
+      ]
+    },
+    {
+      "id": "1590bb-4-knob",
+      "enclosure": "1590BB",
+      "category": "controls",
+      "name": "1590BB \u2014 4-knob wide 2\u00d72",
+      "description": "Wider pot spacing than 125B thanks to the larger face.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -25.4, "y_mm": 25.4,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 25.4,  "y_mm": 25.4,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -25.4, "y_mm": 0,     "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 25.4,  "y_mm": 0,     "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,     "y_mm": 12.7,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -38.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590bb-6-knob",
+      "enclosure": "1590BB",
+      "category": "controls",
+      "name": "1590BB \u2014 6-knob 3\u00d72",
+      "description": "Three pots per row, LED centered between rows.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -25.4, "y_mm": 25.4,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,     "y_mm": 25.4,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 25.4,  "y_mm": 25.4,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -25.4, "y_mm": 0,     "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,     "y_mm": 0,     "label": "POT 5",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 25.4,  "y_mm": 0,     "label": "POT 6",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,     "y_mm": 12.7,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -38.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+
+    {
+      "id": "1590dd-top-jacks",
+      "enclosure": "1590DD",
+      "category": "jacks",
+      "name": "1590DD \u2014 top-mounted jacks (wide)",
+      "description": "Large enclosure; jacks at wider spacing.",
+      "holes": [
+        { "side": "B", "diameter_mm": 9.7, "x_mm": -40.0, "y_mm": 5.75, "label": "INPUT",  "icon": "jack" },
+        { "side": "B", "diameter_mm": 8.1, "x_mm": 0,     "y_mm": -4.4, "label": "DC",     "icon": "dc-jack" },
+        { "side": "B", "diameter_mm": 9.7, "x_mm": 40.0,  "y_mm": 5.75, "label": "OUTPUT", "icon": "jack" }
+      ]
+    },
+    {
+      "id": "1590dd-dual-footswitch-6-knob",
+      "enclosure": "1590DD",
+      "category": "combined",
+      "name": "1590DD \u2014 dual footswitch, 6-knob",
+      "description": "Classic dual-footswitch large-format layout with 3\u00d72 pots and two LEDs.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -30.0, "y_mm": 38.1,  "label": "POT 1",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,     "y_mm": 38.1,  "label": "POT 2",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 30.0,  "y_mm": 38.1,  "label": "POT 3",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": -30.0, "y_mm": 12.7,  "label": "POT 4",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 0,     "y_mm": 12.7,  "label": "POT 5",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.2,  "x_mm": 30.0,  "y_mm": 12.7,  "label": "POT 6",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": -30.0, "y_mm": -30.0, "label": "LED A",   "icon": "led" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 30.0,  "y_mm": -30.0, "label": "LED B",   "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": -30.0, "y_mm": -60.0, "label": "FS A",    "icon": "footswitch" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": 30.0,  "y_mm": -60.0, "label": "FS B",    "icon": "footswitch" }
+      ]
+    }
+  ]
+}
