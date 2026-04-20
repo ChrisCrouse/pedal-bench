@@ -94,8 +94,33 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface PDFExtractOut {
+  suggested_name: string | null;
+  suggested_enclosure: string | null;
+  enclosure_in_catalog: boolean;
+  bom: BOMItem[];
+  wiring_page_index: number | null;
+  drill_template_page_index: number | null;
+  warnings: string[];
+}
+
+async function uploadPdf<T>(path: string, file: File, fields: Record<string, string> = {}): Promise<T> {
+  const fd = new FormData();
+  fd.append("file", file);
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  const res = await fetch(BASE + path, { method: "POST", body: fd });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${body}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   health: () => request<{ status: string; service: string }>("/health"),
+  pdf: {
+    extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),
+  },
   enclosures: {
     list: () => request<Enclosure[]>("/enclosures"),
     get: (key: string) => request<Enclosure>(`/enclosures/${encodeURIComponent(key)}`),
@@ -107,6 +132,11 @@ export const api = {
       request<Project>("/projects", {
         method: "POST",
         body: JSON.stringify(payload),
+      }),
+    createFromPdf: (file: File, name?: string, enclosure?: string) =>
+      uploadPdf<Project>("/projects/from-pdf", file, {
+        ...(name ? { name } : {}),
+        ...(enclosure ? { enclosure } : {}),
       }),
     update: (
       slug: string,

@@ -1,17 +1,29 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "@/api/client";
+import { api, type PDFExtractOut } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { PdfDropZone } from "@/components/pdf/PdfDropZone";
+import { PdfReviewDialog } from "@/components/pdf/PdfReviewDialog";
 
 export function HomePage() {
   const [newOpen, setNewOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<PDFExtractOut | null>(null);
   const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects.list });
+
+  const extract = useMutation({
+    mutationFn: (file: File) => api.pdf.extract(file),
+    onSuccess: (data, variables) => {
+      setPendingFile(variables);
+      setPreview(data);
+    },
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -20,12 +32,29 @@ export function HomePage() {
           <h1 className="text-3xl font-semibold tracking-tight">Your builds</h1>
           <p className="mt-2 text-zinc-600 dark:text-zinc-400">
             Start a new pedal build. Drop a PedalPCB PDF and we'll extract the BOM,
-            enclosure, and drill template automatically — or build one up manually.
+            enclosure, and title automatically — or build one up manually.
           </p>
         </div>
-        <Button variant="primary" size="lg" onClick={() => setNewOpen(true)}>
-          + New Project
+        <Button variant="secondary" size="lg" onClick={() => setNewOpen(true)}>
+          + New (manual)
         </Button>
+      </section>
+
+      <section className="mt-6">
+        <PdfDropZone
+          disabled={extract.isPending}
+          onFile={(file) => extract.mutate(file)}
+        />
+        {extract.isPending && (
+          <div className="mt-2 text-center text-sm text-zinc-500">
+            Extracting build package from PDF…
+          </div>
+        )}
+        {extract.isError && (
+          <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            PDF extraction failed: {(extract.error as Error).message}
+          </div>
+        )}
       </section>
 
       <section className="mt-8">
@@ -70,6 +99,16 @@ export function HomePage() {
       </section>
 
       <NewProjectDialog open={newOpen} onClose={() => setNewOpen(false)} />
+      {pendingFile && preview && (
+        <PdfReviewDialog
+          file={pendingFile}
+          preview={preview}
+          onClose={() => {
+            setPendingFile(null);
+            setPreview(null);
+          }}
+        />
+      )}
     </div>
   );
 }
