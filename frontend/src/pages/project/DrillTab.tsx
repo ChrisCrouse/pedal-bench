@@ -25,6 +25,7 @@ import {
   type MirrorMode,
   type MirrorState,
 } from "@/components/drill/mirrors";
+import { useUndoable } from "@/hooks/useUndoable";
 
 interface Ctx {
   slug: string;
@@ -47,8 +48,11 @@ export function DrillTab() {
   });
   const snapGuides = presetsQuery.data?.snap_guides ?? null;
 
-  const [holes, setHoles] = useState<Hole[]>(project.holes);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const holesUndoable = useUndoable<Hole[]>(project.holes);
+  const holes = holesUndoable.value;
+  const setHoles = holesUndoable.set;
+
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [artworkOpen, setArtworkOpen] = useState(false);
   const [exportResults, setExportResults] = useState<STLExport[] | null>(null);
@@ -61,47 +65,75 @@ export function DrillTab() {
   const localKey = useMemo(() => JSON.stringify(holes), [holes]);
   const dirty = serverKey !== localKey;
 
-  // When the project from the server changes (e.g., after save), sync local state.
+  // When the project from the server changes (e.g., after save), sync
+  // WITHOUT pushing history — server syncs should not be undoable.
   useEffect(() => {
-    setHoles(project.holes);
+    holesUndoable.reset(project.holes);
+    setSelectedIndices([]);
   }, [serverKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keyboard shortcuts: arrow keys nudge, Delete removes, Escape deselects.
+  // Keyboard shortcuts: arrow-nudge, Delete, Escape, Ctrl+Z/Redo.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (selectedIdx === null) return;
       const target = e.target as HTMLElement | null;
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      const inField = target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+
+      // Undo / redo: allowed even when nothing is selected, but still skip
+      // while the user is typing in a form field (browser's own undo wins).
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === "z" && !e.shiftKey && !inField) {
+          e.preventDefault();
+          holesUndoable.undo();
+          setSelectedIndices([]);
+          return;
+        }
+        if ((key === "z" && e.shiftKey) || key === "y") {
+          if (inField) return;
+          e.preventDefault();
+          holesUndoable.redo();
+          setSelectedIndices([]);
+          return;
+        }
+      }
+
+      if (selectedIndices.length === 0) return;
+      if (inField) return;
 
       const step = e.shiftKey ? 0.1 : 1;
       const apply = (dx: number, dy: number) => {
         setHoles((prev) => {
-          const updated = prev.map((h, i) =>
-            i === selectedIdx
+          let updated = prev.map((h, i) =>
+            selectedIndices.includes(i)
               ? { ...h, x_mm: round1(h.x_mm + dx), y_mm: round1(h.y_mm + dy) }
               : h,
           );
-          return propagateDrag(updated, selectedIdx);
+          // Propagate mirror-group updates for each moved hole.
+          for (const idx of selectedIndices) {
+            updated = propagateDrag(updated, idx);
+          }
+          return updated;
         });
         e.preventDefault();
       };
+
       if (e.key === "ArrowUp") apply(0, +step);
       else if (e.key === "ArrowDown") apply(0, -step);
       else if (e.key === "ArrowLeft") apply(-step, 0);
       else if (e.key === "ArrowRight") apply(+step, 0);
       else if (e.key === "Delete" || e.key === "Backspace") {
         setHoles((prev) =>
-          pruneSingletonGroups(prev.filter((_, i) => i !== selectedIdx)),
+          pruneSingletonGroups(prev.filter((_, i) => !selectedIndices.includes(i))),
         );
-        setSelectedIdx(null);
+        setSelectedIndices([]);
         e.preventDefault();
       } else if (e.key === "Escape") {
-        setSelectedIdx(null);
+        setSelectedIndices([]);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedIdx]);
+  }, [selectedIndices, holesUndoable, setHoles]);
 
   const saveMutation = useMutation({
     mutationFn: (next: Hole[]) => api.projects.replaceHoles(slug, next),
@@ -119,7 +151,6 @@ export function DrillTab() {
   const reextract = useMutation({
     mutationFn: () => api.projects.extractHoles(slug),
     onSuccess: (extracted) => {
-      // Confirm before overwriting any pending edits.
       const doReplace =
         holes.length === 0 ||
         confirm(
@@ -127,7 +158,7 @@ export function DrillTab() {
         );
       if (doReplace) {
         setHoles(extracted);
-        setSelectedIdx(null);
+        setSelectedIndices([]);
       }
     },
     onError: (err) => {
@@ -140,69 +171,89 @@ export function DrillTab() {
       setHoles((prev) => {
         const group = createMirrorGroup(h, mirrorState);
         const next = [...prev, ...group];
-        setSelectedIdx(prev.length); // select the seed (first of group)
         return next;
       });
+      // Select the seed (first of group) — index is prev.length from caller's view.
+      setSelectedIndices([holes.length]);
     },
-    [mirrorState],
+    [mirrorState, setHoles, holes.length],
   );
 
-  const handleMove = useCallback((idx: number, x_mm: number, y_mm: number) => {
-    setHoles((prev) => {
-      const updated = prev.map((h, i) => (i === idx ? { ...h, x_mm, y_mm } : h));
-      return propagateDrag(updated, idx);
-    });
-  }, []);
+  const handleMoveMany = useCallback(
+    (moves: { idx: number; x_mm: number; y_mm: number }[]) => {
+      setHoles((prev) => {
+        let updated = prev;
+        for (const m of moves) {
+          updated = updated.map((h, i) =>
+            i === m.idx ? { ...h, x_mm: m.x_mm, y_mm: m.y_mm } : h,
+          );
+          updated = propagateDrag(updated, m.idx);
+        }
+        return updated;
+      });
+    },
+    [setHoles],
+  );
 
-  const handleChangeDiameter = useCallback((idx: number, diameter_mm: number) => {
-    setHoles((prev) => {
-      const updated = prev.map((h, i) => (i === idx ? { ...h, diameter_mm } : h));
-      return propagateNonPositional(updated, idx, { diameter_mm });
-    });
-  }, []);
+  const handleChangeDiameter = useCallback(
+    (idx: number, diameter_mm: number) => {
+      setHoles((prev) => {
+        const updated = prev.map((h, i) => (i === idx ? { ...h, diameter_mm } : h));
+        return propagateNonPositional(updated, idx, { diameter_mm });
+      });
+    },
+    [setHoles],
+  );
+
+  // Single-selection mutations come from the inspector; apply to primary selected.
+  const primaryIdx = selectedIndices.length > 0 ? selectedIndices[0] : null;
+  const primaryHole = primaryIdx !== null ? holes[primaryIdx] ?? null : null;
 
   const mutateSelected = useCallback(
     (patch: Partial<Hole>) => {
-      if (selectedIdx === null) return;
+      if (primaryIdx === null) return;
       setHoles((prev) => {
         let next = prev.map((h, i) =>
-          i === selectedIdx ? { ...h, ...patch } : h,
+          i === primaryIdx ? { ...h, ...patch } : h,
         );
         if ("x_mm" in patch || "y_mm" in patch || "side" in patch) {
-          next = propagateDrag(next, selectedIdx);
+          next = propagateDrag(next, primaryIdx);
         }
-        next = propagateNonPositional(next, selectedIdx, patch);
+        next = propagateNonPositional(next, primaryIdx, patch);
         return next;
       });
     },
-    [selectedIdx],
+    [primaryIdx, setHoles],
   );
 
   const deleteSelected = useCallback(() => {
-    if (selectedIdx === null) return;
+    if (selectedIndices.length === 0) return;
     setHoles((prev) =>
-      pruneSingletonGroups(prev.filter((_, i) => i !== selectedIdx)),
+      pruneSingletonGroups(prev.filter((_, i) => !selectedIndices.includes(i))),
     );
-    setSelectedIdx(null);
-  }, [selectedIdx]);
+    setSelectedIndices([]);
+  }, [selectedIndices, setHoles]);
 
-  const importTayda = useCallback((imported: Hole[], mode: "replace" | "append") => {
-    setHoles((prev) => (mode === "replace" ? imported : [...prev, ...imported]));
-    setSelectedIdx(null);
-  }, []);
+  const importTayda = useCallback(
+    (imported: Hole[], mode: "replace" | "append") => {
+      setHoles((prev) => (mode === "replace" ? imported : [...prev, ...imported]));
+      setSelectedIndices([]);
+    },
+    [setHoles],
+  );
 
   const applyMirrorToSelected = useCallback(
     (mode: MirrorMode) => {
-      if (selectedIdx === null) return;
+      if (primaryIdx === null) return;
       setHoles((prev) => {
-        const seed = prev[selectedIdx];
+        const seed = prev[primaryIdx];
         if (!seed) return prev;
         if (mode === "ce" && !canMirrorCE(seed.side)) return prev;
         const twin = mirrorHole(seed, mode);
         return [...prev, twin];
       });
     },
-    [selectedIdx],
+    [primaryIdx, setHoles],
   );
 
   const toggleMirrorMode = useCallback((mode: MirrorMode) => {
@@ -229,7 +280,6 @@ export function DrillTab() {
     );
   }
 
-  const selectedHole = selectedIdx === null ? null : holes[selectedIdx] ?? null;
   const byside: Record<string, number> = {};
   for (const h of holes) byside[h.side] = (byside[h.side] ?? 0) + 1;
 
@@ -250,6 +300,11 @@ export function DrillTab() {
                 .join("  ")}
             </span>
           )}
+          {selectedIndices.length > 1 && (
+            <span className="ml-2 inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-300">
+              {selectedIndices.length} selected
+            </span>
+          )}
           {dirty && (
             <span className="ml-2 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-300">
               unsaved
@@ -257,6 +312,24 @@ export function DrillTab() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={holesUndoable.undo}
+            disabled={!holesUndoable.canUndo}
+            title="Undo (Ctrl+Z)"
+          >
+            Undo
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={holesUndoable.redo}
+            disabled={!holesUndoable.canRedo}
+            title="Redo (Ctrl+Shift+Z)"
+          >
+            Redo
+          </Button>
           <Button
             variant="ghost"
             onClick={() => reextract.mutate()}
@@ -302,15 +375,21 @@ export function DrillTab() {
         </div>
       </div>
 
-      {/* Workspace: left sidebar / canvas / right inspector */}
+      {/* Workspace */}
       <div className="flex min-h-0 flex-1">
         <aside className="w-64 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/50">
           <SmartLayouts
             enclosure={enclosure.data}
             holes={holes}
-            selectedIdx={selectedIdx}
-            onReplaceAll={setHoles}
-            onAppend={(newHoles) => setHoles((prev) => [...prev, ...newHoles])}
+            selectedIdx={primaryIdx}
+            onReplaceAll={(h) => {
+              setHoles(h);
+              setSelectedIndices([]);
+            }}
+            onAppend={(newHoles) => {
+              setHoles((prev) => [...prev, ...newHoles]);
+              setSelectedIndices([]);
+            }}
             onMutateSelected={mutateSelected}
             mirrorState={mirrorState}
             onToggleMirror={toggleMirrorMode}
@@ -325,11 +404,13 @@ export function DrillTab() {
           <EnclosureCanvas
             enclosure={enclosure.data}
             holes={holes}
-            selectedIdx={selectedIdx}
-            onSelect={setSelectedIdx}
+            selectedIndices={selectedIndices}
+            onSelect={setSelectedIndices}
             onAdd={handleAdd}
-            onMove={handleMove}
+            onMoveMany={handleMoveMany}
             onChangeDiameter={handleChangeDiameter}
+            onDragBegin={holesUndoable.beginTransaction}
+            onDragEnd={holesUndoable.endTransaction}
             defaultIcon={defaultIcon}
             snapEnabled={snapEnabled}
             snapGuides={snapGuides}
@@ -337,13 +418,20 @@ export function DrillTab() {
         </div>
 
         <aside className="w-80 shrink-0 overflow-y-auto border-l border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/50">
-          <HoleInspector
-            enclosure={enclosure.data}
-            hole={selectedHole}
-            onChange={mutateSelected}
-            onDelete={deleteSelected}
-            onMirror={applyMirrorToSelected}
-          />
+          {selectedIndices.length > 1 ? (
+            <MultiSelectionPanel
+              count={selectedIndices.length}
+              onDelete={deleteSelected}
+            />
+          ) : (
+            <HoleInspector
+              enclosure={enclosure.data}
+              hole={primaryHole}
+              onChange={mutateSelected}
+              onDelete={deleteSelected}
+              onMirror={applyMirrorToSelected}
+            />
+          )}
         </aside>
       </div>
 
@@ -366,6 +454,30 @@ export function DrillTab() {
           onClose={() => setExportResults(null)}
         />
       )}
+    </div>
+  );
+}
+
+function MultiSelectionPanel({
+  count,
+  onDelete,
+}: {
+  count: number;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="space-y-4 px-4 py-4">
+      <div className="text-sm font-semibold">{count} holes selected</div>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        Drag any selected hole to move the whole group in lockstep. Nudge with
+        arrow keys (Shift = 0.1 mm). Delete removes every selected hole.
+      </p>
+      <Button variant="danger" onClick={onDelete} className="w-full">
+        Delete {count} holes
+      </Button>
+      <div className="text-xs text-zinc-500">
+        Click any one hole to return to single-select for per-hole edits.
+      </div>
     </div>
   );
 }

@@ -91,7 +91,6 @@ export function SmartLayouts({
     onAppend(newHoles);
   };
 
-  const centerBoth = () => onMutateSelected({ x_mm: 0, y_mm: 0 });
   const centerX = () => onMutateSelected({ x_mm: 0 });
   const centerY = () => onMutateSelected({ y_mm: 0 });
 
@@ -283,15 +282,12 @@ export function SmartLayouts({
       </Section>
 
       <Section title="Selected hole">
-        <div className="grid grid-cols-3 gap-2">
-          <Button size="sm" disabled={!selectedHole} onClick={centerX} title="Set x = 0 (centerline)">
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="sm" disabled={!selectedHole} onClick={centerX} title="Set x = 0 (vertical centerline)">
             Center X
           </Button>
-          <Button size="sm" disabled={!selectedHole} onClick={centerY} title="Set y = 0 (centerline)">
+          <Button size="sm" disabled={!selectedHole} onClick={centerY} title="Set y = 0 (horizontal centerline)">
             Center Y
-          </Button>
-          <Button size="sm" disabled={!selectedHole} onClick={centerBoth} title="Move to face center (0, 0)">
-            Center
           </Button>
         </div>
         <p className="text-[11px] leading-snug text-zinc-500">

@@ -194,7 +194,79 @@
         { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -38.0, "label": "FOOTSWITCH", "icon": "footswitch" }
       ]
     },
+    {
+      "id": "1590b-1-knob",
+      "enclosure": "1590B",
+      "category": "controls",
+      "name": "1590B \u2014 1-knob (minimal)",
+      "description": "Single pot top, LED below it, footswitch at the bottom. Deduced from the GGG 1590B 1-knob drill template.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": 0, "y_mm": 30.0,  "label": "POT",        "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm": 0, "y_mm": 8.0,   "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm": 0, "y_mm": -35.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590b-4-knob",
+      "enclosure": "1590B",
+      "category": "controls",
+      "name": "1590B \u2014 4-knob tight 2\u00d72",
+      "description": "Four pots in a 2\u00d72 grid \u2014 tight on a 1590B (\u00b113 mm x-spacing), LED between rows, footswitch at bottom. Deduced from the GGG 1590B 4-knob drilling template.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -13.0, "y_mm": 28.0,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  13.0, "y_mm": 28.0,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -13.0, "y_mm":  5.0,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  13.0, "y_mm":  5.0,  "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm": 0,     "y_mm": 16.5,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm": 0,     "y_mm": -35.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
 
+    {
+      "id": "1590bb-2-knob",
+      "enclosure": "1590BB",
+      "category": "controls",
+      "name": "1590BB \u2014 2-knob wide",
+      "description": "Two pots wide-spaced across the top row, LED on the centerline, footswitch at the bottom. Matches simple stomper layouts on a 1590BB face.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -25.4, "y_mm": 30.0,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  25.4, "y_mm": 30.0,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm": 0,     "y_mm":  5.0,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm": 0,     "y_mm": -38.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590bb-3-knob-toggles",
+      "enclosure": "1590BB",
+      "category": "controls",
+      "name": "1590BB \u2014 3-knob + toggles + center LED (GGG)",
+      "description": "GGG 1590BB 3-knob layout: three pots across the top at 9/32\", center LED flanked by two toggles at 1/4\", footswitch at 1/2\" at the bottom. Deduced from ggg_drill_1590bb_3knob.pdf.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -28.0, "y_mm":  35.0, "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":   0.0, "y_mm":  35.0, "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  28.0, "y_mm":  35.0, "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm": -28.0, "y_mm":  10.0, "label": "TOGGLE 1",   "icon": "toggle" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm":   0.0, "y_mm":  10.0, "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm":  28.0, "y_mm":  10.0, "label": "TOGGLE 2",   "icon": "toggle" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm":   0.0, "y_mm": -40.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590bb-dual-fsw-3knob",
+      "enclosure": "1590BB",
+      "category": "combined",
+      "name": "1590BB \u2014 3-knob, dual footswitch, 2 LEDs (GGG)",
+      "description": "Dual-footswitch layout: three pots on top, two LEDs above the two footswitches. Deduced from ggg_drill_1590bb_dual.pdf.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -28.0, "y_mm":  38.0, "label": "POT 1",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":   0.0, "y_mm":  38.0, "label": "POT 2",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  28.0, "y_mm":  38.0, "label": "POT 3",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm": -22.0, "y_mm":  12.0, "label": "LED A",   "icon": "led" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm":  22.0, "y_mm":  12.0, "label": "LED B",   "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm": -22.0, "y_mm": -38.0, "label": "FSW A",   "icon": "footswitch" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm":  22.0, "y_mm": -38.0, "label": "FSW B",   "icon": "footswitch" }
+      ]
+    },
     {
       "id": "1590bb-top-jacks",
       "enclosure": "1590BB",
@@ -237,6 +309,26 @@
         { "side": "A", "diameter_mm": 7.2,  "x_mm": 25.4,  "y_mm": 0,     "label": "POT 6",      "icon": "pot" },
         { "side": "A", "diameter_mm": 4.4,  "x_mm": 0,     "y_mm": 12.7,  "label": "LED",        "icon": "led" },
         { "side": "A", "diameter_mm": 12.2, "x_mm": 0,     "y_mm": -38.1, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+
+    {
+      "id": "1590xx-6-knob-dual-fsw",
+      "enclosure": "1590XX",
+      "category": "combined",
+      "name": "1590XX \u2014 6-knob dual footswitch",
+      "description": "Big-format layout: 3\u00d72 pot grid up top, 2 LEDs in the middle, two footswitches at the bottom. Good starting point for complex multi-mode effects.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -35.0, "y_mm":  45.0, "label": "POT 1",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":   0.0, "y_mm":  45.0, "label": "POT 2",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  35.0, "y_mm":  45.0, "label": "POT 3",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -35.0, "y_mm":  15.0, "label": "POT 4",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":   0.0, "y_mm":  15.0, "label": "POT 5",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  35.0, "y_mm":  15.0, "label": "POT 6",   "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm": -25.0, "y_mm": -15.0, "label": "LED A",   "icon": "led" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm":  25.0, "y_mm": -15.0, "label": "LED B",   "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm": -25.0, "y_mm": -50.0, "label": "FSW A",   "icon": "footswitch" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm":  25.0, "y_mm": -50.0, "label": "FSW B",   "icon": "footswitch" }
       ]
     },
 

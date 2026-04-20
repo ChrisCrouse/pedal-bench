@@ -17,11 +17,13 @@ import {
 interface Props {
   enclosure: Enclosure;
   holes: Hole[];
-  selectedIdx: number | null;
-  onSelect: (idx: number | null) => void;
+  selectedIndices: number[];
+  onSelect: (indices: number[]) => void;
   onAdd: (hole: Hole) => void;
-  onMove: (idx: number, x_mm: number, y_mm: number) => void;
+  onMoveMany: (moves: { idx: number; x_mm: number; y_mm: number }[]) => void;
   onChangeDiameter: (idx: number, diameter_mm: number) => void;
+  onDragBegin: () => void;
+  onDragEnd: () => void;
   /** Default icon to assign to holes created by click. */
   defaultIcon: IconKind | null;
   /** When enabled, snap guides render and drag/place snap to them. */
@@ -33,27 +35,49 @@ interface Props {
  * SVG unfolded-enclosure canvas.
  *
  * Interactions:
- * - Click on an empty area of a face → add a new hole (default icon applied).
- * - Click on an existing hole → select it.
- * - Drag a selected hole → reposition with snap if enabled.
- * - Mouse wheel over a hole → adjust diameter (±0.5 mm; Shift ±0.1; Ctrl ±1).
- * - Click background (outside any face) → deselect.
+ * - Click on empty face area: add a new hole there (default icon applied).
+ * - Click on a hole: single-select.
+ * - Shift-click on a hole: toggle in/out of current selection.
+ * - Drag a selected hole: move every selected hole in lockstep.
+ * - Shift-drag on empty area (anywhere): draw a selection rectangle.
+ * - Mouse wheel over a hole: adjust diameter (±0.5 mm; Shift ±0.1; Ctrl ±1).
+ * - Click background outside any face: clear selection.
  */
 export function EnclosureCanvas({
   enclosure,
   holes,
-  selectedIdx,
+  selectedIndices,
   onSelect,
   onAdd,
-  onMove,
+  onMoveMany,
   onChangeDiameter,
+  onDragBegin,
+  onDragEnd,
   defaultIcon,
   snapEnabled,
   snapGuides,
 }: Props) {
   const layout = useMemo(() => unfoldedLayout(enclosure), [enclosure]);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const selectedSet = useMemo(() => new Set(selectedIndices), [selectedIndices]);
+
+  const [dragging, setDragging] = useState<null | {
+    // Index of the hole being dragged; every other selected hole moves
+    // relative to this one with the same delta.
+    leaderIdx: number;
+    // Starting positions per selected index (for incremental delta math).
+    start: Map<number, { x_mm: number; y_mm: number }>;
+    // Cursor start in layout coords.
+    startLayoutX: number;
+    startLayoutY: number;
+  }>(null);
+
+  const [boxSelect, setBoxSelect] = useState<null | {
+    startX: number;
+    startY: number;
+    curX: number;
+    curY: number;
+  }>(null);
 
   const viewBox = `${layout.minX} ${layout.minY} ${
     layout.maxX - layout.minX
@@ -74,60 +98,117 @@ export function EnclosureCanvas({
     [],
   );
 
-  // Global mousemove/mouseup while dragging.
+  // Global mousemove / mouseup while dragging or box-selecting.
   useEffect(() => {
-    if (dragIdx === null) return;
-    const onMove_ = (e: MouseEvent) => {
+    if (!dragging && !boxSelect) return;
+
+    const onMove = (e: MouseEvent) => {
       const p = clientToLayout(e.clientX, e.clientY);
       if (!p) return;
-      const hole = holes[dragIdx];
-      if (!hole) return;
-      const faceLayout = layout.faces.find((f) => f.side === hole.side);
-      if (!faceLayout) return;
-      // Use the face the hole is assigned to (preserve side).
-      const rawX = p.x - faceLayout.centerX;
-      const rawY = -(p.y - faceLayout.centerY); // flip to Tayda convention
-      const snapGuide = getGuideForSide(snapGuides, enclosure.key, hole.side);
-      const { x_mm, y_mm } = snapToGuides(snapEnabled, snapGuide, rawX, rawY);
-      onMove(dragIdx, x_mm, y_mm);
+
+      if (dragging) {
+        // Compute delta using the leader hole's drag semantics.
+        const leaderFace = layout.faces.find(
+          (f) => f.side === holes[dragging.leaderIdx]?.side,
+        );
+        if (!leaderFace) return;
+        const leaderStart = dragging.start.get(dragging.leaderIdx);
+        if (!leaderStart) return;
+        // Where should the leader land? (snap-aware)
+        const rawLeaderX = p.x - leaderFace.centerX;
+        const rawLeaderY = -(p.y - leaderFace.centerY);
+        const guide = getGuideForSide(snapGuides, enclosure.key, holes[dragging.leaderIdx].side);
+        const { x_mm: newLeaderX, y_mm: newLeaderY } = snapToGuides(
+          snapEnabled,
+          guide,
+          rawLeaderX,
+          rawLeaderY,
+        );
+        const dx = newLeaderX - leaderStart.x_mm;
+        const dy = newLeaderY - leaderStart.y_mm;
+
+        // Apply delta to every selected hole.
+        const moves: { idx: number; x_mm: number; y_mm: number }[] = [];
+        for (const [idx, start] of dragging.start.entries()) {
+          moves.push({
+            idx,
+            x_mm: round1(start.x_mm + dx),
+            y_mm: round1(start.y_mm + dy),
+          });
+        }
+        onMoveMany(moves);
+      } else if (boxSelect) {
+        setBoxSelect({ ...boxSelect, curX: p.x, curY: p.y });
+      }
     };
-    const onUp = () => setDragIdx(null);
-    window.addEventListener("mousemove", onMove_);
+
+    const onUp = () => {
+      if (dragging) {
+        setDragging(null);
+        onDragEnd();
+      }
+      if (boxSelect) {
+        // Commit the box-select: select every hole whose center is inside.
+        const { startX, startY, curX, curY } = boxSelect;
+        const minX = Math.min(startX, curX);
+        const maxX = Math.max(startX, curX);
+        const minY = Math.min(startY, curY);
+        const maxY = Math.max(startY, curY);
+        const hits: number[] = [];
+        holes.forEach((h, idx) => {
+          const face = layout.faces.find((f) => f.side === h.side);
+          if (!face) return;
+          const { x, y } = faceToLayout(face, h.x_mm, h.y_mm);
+          if (x >= minX && x <= maxX && y >= minY && y <= maxY) hits.push(idx);
+        });
+        setBoxSelect(null);
+        // Meaningfully small drag? Treat as a click — ignore.
+        if (Math.abs(curX - startX) < 1 && Math.abs(curY - startY) < 1) return;
+        onSelect(hits);
+      }
+    };
+
+    window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
-      window.removeEventListener("mousemove", onMove_);
+      window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
   }, [
-    dragIdx,
+    dragging,
+    boxSelect,
     holes,
     layout,
     clientToLayout,
-    onMove,
+    onMoveMany,
+    onSelect,
+    onDragEnd,
     snapEnabled,
     snapGuides,
     enclosure.key,
   ]);
 
-  const handleBackgroundClick = (e: React.MouseEvent) => {
+  const handleBackgroundMouseDown = (e: React.MouseEvent) => {
     const p = clientToLayout(e.clientX, e.clientY);
     if (!p) return;
-    const hit = layoutToFace(layout, p.x, p.y);
-    if (!hit) {
-      onSelect(null);
+
+    // Shift-drag anywhere: start a box-selection rectangle.
+    if (e.shiftKey) {
+      setBoxSelect({ startX: p.x, startY: p.y, curX: p.x, curY: p.y });
+      onSelect([]);
       return;
     }
-    // Click inside a face → create a new hole at this position.
-    const snapGuide = getGuideForSide(snapGuides, enclosure.key, hit.face.side);
-    const { x_mm, y_mm } = snapToGuides(
-      snapEnabled,
-      snapGuide,
-      hit.x_mm,
-      hit.y_mm,
-    );
-    const diameter = defaultIcon
-      ? ICON_DEFAULT_DIAMETER[defaultIcon]
-      : 7.2;
+
+    const hit = layoutToFace(layout, p.x, p.y);
+    if (!hit) {
+      // Clicked outside every face: deselect.
+      onSelect([]);
+      return;
+    }
+    // Click inside a face: add a new hole at this position (snap-aware).
+    const guide = getGuideForSide(snapGuides, enclosure.key, hit.face.side);
+    const { x_mm, y_mm } = snapToGuides(snapEnabled, guide, hit.x_mm, hit.y_mm);
+    const diameter = defaultIcon ? ICON_DEFAULT_DIAMETER[defaultIcon] : 7.2;
     onAdd({
       side: hit.face.side,
       x_mm,
@@ -141,12 +222,39 @@ export function EnclosureCanvas({
 
   const handleHoleMouseDown = (idx: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    onSelect(idx);
-    setDragIdx(idx);
+    let nextSelection: number[];
+    if (e.shiftKey) {
+      // Toggle.
+      if (selectedSet.has(idx)) nextSelection = selectedIndices.filter((i) => i !== idx);
+      else nextSelection = [...selectedIndices, idx];
+    } else if (selectedSet.has(idx) && selectedIndices.length > 1) {
+      // Start drag with existing multi-selection intact.
+      nextSelection = selectedIndices;
+    } else {
+      nextSelection = [idx];
+    }
+    onSelect(nextSelection);
+
+    // If we would be dragging, begin transaction + capture starting positions.
+    const dragSet = new Set(nextSelection);
+    if (dragSet.size > 0 && !e.shiftKey) {
+      onDragBegin();
+      const start = new Map<number, { x_mm: number; y_mm: number }>();
+      dragSet.forEach((i) => {
+        const h = holes[i];
+        if (h) start.set(i, { x_mm: h.x_mm, y_mm: h.y_mm });
+      });
+      const p = clientToLayout(e.clientX, e.clientY) ?? { x: 0, y: 0 };
+      setDragging({
+        leaderIdx: idx,
+        start,
+        startLayoutX: p.x,
+        startLayoutY: p.y,
+      });
+    }
   };
 
   const handleHoleWheel = (idx: number) => (e: React.WheelEvent) => {
-    // Prevent the page from scrolling when wheeling over a hole.
     e.preventDefault();
     e.stopPropagation();
     const step = e.ctrlKey ? 1 : e.shiftKey ? 0.1 : 0.5;
@@ -164,18 +272,13 @@ export function EnclosureCanvas({
         viewBox={viewBox}
         preserveAspectRatio="xMidYMid meet"
         className="h-full w-full select-none"
-        onMouseDown={handleBackgroundClick}
+        onMouseDown={handleBackgroundMouseDown}
         onWheelCapture={(e) => {
           if ((e.target as SVGElement).tagName === "circle") e.preventDefault();
         }}
       >
         <defs>
-          <pattern
-            id="face-grid"
-            width="10"
-            height="10"
-            patternUnits="userSpaceOnUse"
-          >
+          <pattern id="face-grid" width="10" height="10" patternUnits="userSpaceOnUse">
             <path
               d="M 10 0 L 0 0 0 10"
               fill="none"
@@ -191,18 +294,11 @@ export function EnclosureCanvas({
           <FaceRect key={f.side} face={f} />
         ))}
 
-        {/* Snap guides (face-local) rendered behind holes */}
         {snapEnabled &&
           layout.faces.map((f) => {
             const guide = getGuideForSide(snapGuides, enclosure.key, f.side);
             if (!guide) return null;
-            return (
-              <SnapGuideOverlay
-                key={`snap-${f.side}`}
-                face={f}
-                guide={guide}
-              />
-            );
+            return <SnapGuideOverlay key={`snap-${f.side}`} face={f} guide={guide} />;
           })}
 
         {holes.map((h, idx) => {
@@ -210,7 +306,7 @@ export function EnclosureCanvas({
           if (!faceLayout) return null;
           const { x, y } = faceToLayout(faceLayout, h.x_mm, h.y_mm);
           const overflow = isOverflowing(faceLayout.dims, h.x_mm, h.y_mm, h.diameter_mm);
-          const isSelected = idx === selectedIdx;
+          const isSelected = selectedSet.has(idx);
           return (
             <HoleGlyph
               key={idx}
@@ -224,6 +320,21 @@ export function EnclosureCanvas({
             />
           );
         })}
+
+        {/* Box-select rectangle */}
+        {boxSelect && (
+          <rect
+            x={Math.min(boxSelect.startX, boxSelect.curX)}
+            y={Math.min(boxSelect.startY, boxSelect.curY)}
+            width={Math.abs(boxSelect.curX - boxSelect.startX)}
+            height={Math.abs(boxSelect.curY - boxSelect.startY)}
+            fill="rgba(16,185,129,0.10)"
+            stroke="#10b981"
+            strokeWidth="0.4"
+            strokeDasharray="1 1"
+            pointerEvents="none"
+          />
+        )}
       </svg>
 
       {/* Legend */}
@@ -231,10 +342,13 @@ export function EnclosureCanvas({
         <div className="font-semibold">Keyboard</div>
         <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-zinc-600 dark:text-zinc-400">
           <span className="font-mono">click</span> <span>add hole on a face</span>
-          <span className="font-mono">drag</span> <span>reposition hole</span>
+          <span className="font-mono">drag</span> <span>reposition selected hole(s)</span>
+          <span className="font-mono">shift+drag</span> <span>box-select</span>
+          <span className="font-mono">shift+click</span> <span>toggle hole in selection</span>
           <span className="font-mono">wheel</span> <span>diameter (shift=0.1, ctrl=1)</span>
           <span className="font-mono">↑↓←→</span> <span>nudge 1 mm (shift=0.1)</span>
           <span className="font-mono">del</span> <span>remove selected</span>
+          <span className="font-mono">ctrl+z / ctrl+shift+z</span> <span>undo / redo</span>
         </div>
       </div>
     </div>
@@ -264,7 +378,6 @@ function FaceRect({ face }: { face: FaceLayout }) {
       >
         {face.side} · {face.dims.label}
       </text>
-      {/* Center crosshair */}
       <line
         x1={face.centerX - 2}
         y1={face.centerY}
@@ -301,7 +414,7 @@ function SnapGuideOverlay({
   return (
     <g>
       {guide.vertical_lines_mm.map((xOffset, i) => {
-        const x = face.centerX + xOffset; // vertical line at face_center_x + offset
+        const x = face.centerX + xOffset;
         if (x <= left || x >= right) return null;
         return (
           <line
@@ -318,7 +431,6 @@ function SnapGuideOverlay({
         );
       })}
       {guide.horizontal_lines_mm.map((yOffset, i) => {
-        // Tayda Y+ is up; SVG Y+ is down. So layout_y = face_center_y - yOffset.
         const y = face.centerY - yOffset;
         if (y <= top || y >= bottom) return null;
         return (
@@ -361,7 +473,7 @@ function HoleGlyph({
     ? "rgba(239,68,68,0.7)"
     : isSelected
       ? "rgba(16,185,129,0.75)"
-      : palette.fill + "b8"; // append alpha ~72%
+      : palette.fill + "b8";
   const strokeColor = isOverflowing
     ? "#991b1b"
     : isSelected
@@ -403,11 +515,7 @@ function HoleGlyph({
         onMouseDown={onMouseDown}
         onWheel={onWheel}
       />
-      {/* Icon glyph (hit-transparent so drag/click still target the circle) */}
-      <g
-        transform={`translate(${x} ${y})`}
-        pointerEvents="none"
-      >
+      <g transform={`translate(${x} ${y})`} pointerEvents="none">
         {renderIconGlyph(hole.icon ?? null, hole.diameter_mm, isSelected)}
       </g>
       {hole.label && (
@@ -423,4 +531,8 @@ function HoleGlyph({
       )}
     </g>
   );
+}
+
+function round1(v: number) {
+  return Math.round(v * 10) / 10;
 }
