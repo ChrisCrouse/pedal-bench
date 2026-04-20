@@ -147,3 +147,22 @@ These are Phase 2+ and the v1 architecture doesn't preclude any of them.
 
 - **2026-04-19** — Initial v2 architecture recorded. Branch `v2/web-ui`
   created. Stack decisions above are the point of departure.
+- **2026-04-19** — Phase 2 (drill designer) shipped. SVG + native
+  pointer events proved correct for the canvas; no Canvas/Konva needed.
+  Enclosures reoriented to Tayda portrait convention (face A width = short
+  physical dim, height = long dim). All 105 tests re-verified.
+- **2026-04-19** — Phase 3 (port v1 features) shipped. TS port of the
+  Python decoders kept in sync with pytest coverage. New thin routes
+  `PUT /projects/{slug}/bom` and `PUT /projects/{slug}/progress`.
+- **2026-04-19** — Phase 4 (PDF one-drop) shipped. Extractor uses
+  biggest-font-on-page-1 for title and "<enclosure> Enclosure" header
+  regex for enclosure. Two endpoints: `/pdf/extract` (preview) and
+  `/projects/from-pdf` (atomic create). Warnings returned in the
+  preview payload so the UI surfaces graceful fallbacks.
+- **2026-04-19** — Phase 5 (debug helper) shipped. Seed dataset of
+  7 common pedal ICs with per-pin expected voltages + tolerances at
+  9V / VREF=4.5V, audio-probe procedure, and failure triage table.
+- **2026-04-19** — Phase 6 (panel artwork) shipped. Pure-frontend
+  SVG/PNG generation. No backend endpoint needed — the data is already
+  on the client.
+- **2026-04-19** — Top-level `ErrorBoundary` added at `main.tsx` root.
