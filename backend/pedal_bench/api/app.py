@@ -9,6 +9,7 @@ from pedal_bench import config
 from pedal_bench.api.routes import (
     bom,
     debug,
+    drill_extract,
     enclosures,
     holes,
     layout_presets,
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(tayda.router, prefix="/api/v1")
     app.include_router(pdf.router, prefix="/api/v1")
     app.include_router(pdf.projects_router, prefix="/api/v1")
+    app.include_router(drill_extract.router, prefix="/api/v1")
     app.include_router(debug.router, prefix="/api/v1")
     app.include_router(layout_presets.router, prefix="/api/v1")
 

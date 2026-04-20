@@ -20,9 +20,10 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from pedal_bench.api.deps import get_enclosure_catalog, get_project_store
-from pedal_bench.api.schemas import BOMItemIO, ProjectOut
+from pedal_bench.api.schemas import BOMItemIO, HoleIO, ProjectOut
 from pedal_bench.core.models import Enclosure
-from pedal_bench.core.project_store import ProjectStore, slugify
+from pedal_bench.core.project_store import ProjectStore
+from pedal_bench.io.drill_template_extract import extract_drill_holes
 from pedal_bench.io.pdf_page_image import render_page_to_png
 from pedal_bench.io.pedalpcb_extract import extract_build_package
 
@@ -35,6 +36,7 @@ class PDFExtractOut(BaseModel):
     suggested_enclosure: str | None
     enclosure_in_catalog: bool
     bom: list[BOMItemIO]
+    holes: list[HoleIO]
     wiring_page_index: int | None
     drill_template_page_index: int | None
     warnings: list[str]
@@ -57,7 +59,13 @@ async def pdf_extract(
         tmp.write(pdf_bytes)
         tmp_path = Path(tmp.name)
     try:
+        # First-pass extract to detect the enclosure; if it's in our
+        # catalog, re-run the drill extractor with accurate scaling.
         pkg = extract_build_package(tmp_path)
+        if pkg.enclosure and pkg.enclosure in catalog and not pkg.holes:
+            scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
+            if scaled_holes:
+                pkg.holes = scaled_holes
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -66,6 +74,7 @@ async def pdf_extract(
         suggested_enclosure=pkg.enclosure,
         enclosure_in_catalog=(pkg.enclosure in catalog) if pkg.enclosure else False,
         bom=[BOMItemIO(**b.to_dict()) for b in pkg.bom],
+        holes=[HoleIO(**h.to_dict()) for h in pkg.holes],
         wiring_page_index=pkg.wiring_page_index,
         drill_template_page_index=pkg.drill_template_page_index,
         warnings=pkg.warnings,
@@ -93,11 +102,22 @@ async def create_project_from_pdf(
         tmp.write(pdf_bytes)
         tmp_path = Path(tmp.name)
     try:
+        # First-pass extract to detect enclosure; then re-run drill
+        # extraction with proper scaling so holes land in real mm.
         pkg = extract_build_package(tmp_path)
+        enclosure_key = (
+            enclosure
+            or (pkg.enclosure if pkg.enclosure in catalog else "")
+            or ""
+        ).strip()
+        if enclosure_key in catalog:
+            scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
+            if scaled_holes:
+                pkg.holes = scaled_holes
         effective_name = (name or pkg.title or _fallback_name(file.filename)).strip()
         if not effective_name:
             raise HTTPException(400, "Could not determine a project name.")
-        effective_enclosure = (enclosure or (pkg.enclosure if pkg.enclosure in catalog else "") or "").strip()
+        effective_enclosure = enclosure_key
 
         try:
             project = store.create(effective_name, enclosure=effective_enclosure)
@@ -114,8 +134,9 @@ async def create_project_from_pdf(
         dest_pdf.write_bytes(pdf_bytes)
         project.source_pdf = "source.pdf"
 
-        # Attach pre-parsed BOM.
+        # Attach pre-parsed BOM + drill holes.
         project.bom = list(pkg.bom)
+        project.holes = list(pkg.holes)
 
         # Cache the wiring-diagram page as a PNG if we can figure out which
         # page it is. PedalPCB typically has it at page 4 (0-indexed = 3).

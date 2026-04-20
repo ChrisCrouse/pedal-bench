@@ -1,16 +1,16 @@
 {
-  "_comment": "Nominal external dimensions from Hammond datasheets. VERIFY against the specific enclosure before printing a drill guide — casting tolerances and batch-to-batch variation can be ~0.3mm. Face conventions follow the Tayda Box Tool: A=Face (large top where pots usually go), B=Top side, C=Left side, D=Bottom side, E=Right side. Coordinate origin for each face is its center (Tayda convention). width_mm is the long dimension of the face as seen when that face is pointed at you; height_mm is the short dimension.",
+  "_comment": "Nominal external dimensions from Hammond datasheets. Face orientations follow the Tayda Box Tool: all faces drawn in portrait (long edge vertical) when unfolded, with face A (main face) in the center. width_mm is the drawn-horizontal dimension, height_mm is the drawn-vertical dimension, both measured from center. Tayda X+ is right, Y+ is up. VERIFY dimensions against the physical enclosure before printing a drill guide (casting tolerances can vary ~0.3 mm).",
 
   "1590A": {
     "name": "Hammond 1590A",
     "outer_mm": { "length": 95.3, "width": 38.1, "height": 30.1 },
     "wall_thickness_mm": 2.0,
     "faces": {
-      "A": { "label": "Face (top)",    "width_mm": 95.3, "height_mm": 38.1 },
+      "A": { "label": "Face (top)",    "width_mm": 38.1, "height_mm": 95.3 },
       "B": { "label": "Top side",      "width_mm": 38.1, "height_mm": 30.1 },
-      "C": { "label": "Left side",     "width_mm": 95.3, "height_mm": 30.1 },
+      "C": { "label": "Left side",     "width_mm": 30.1, "height_mm": 95.3 },
       "D": { "label": "Bottom side",   "width_mm": 38.1, "height_mm": 30.1 },
-      "E": { "label": "Right side",    "width_mm": 95.3, "height_mm": 30.1 }
+      "E": { "label": "Right side",    "width_mm": 30.1, "height_mm": 95.3 }
     },
     "notes": "Very small — mini-pedal footprint. Usually only fits 1 knob + footswitch."
   },
@@ -20,11 +20,11 @@
     "outer_mm": { "length": 111.5, "width": 59.5, "height": 30.9 },
     "wall_thickness_mm": 2.5,
     "faces": {
-      "A": { "label": "Face (top)",    "width_mm": 111.5, "height_mm": 59.5 },
-      "B": { "label": "Top side",      "width_mm": 59.5,  "height_mm": 30.9 },
-      "C": { "label": "Left side",     "width_mm": 111.5, "height_mm": 30.9 },
-      "D": { "label": "Bottom side",   "width_mm": 59.5,  "height_mm": 30.9 },
-      "E": { "label": "Right side",    "width_mm": 111.5, "height_mm": 30.9 }
+      "A": { "label": "Face (top)",    "width_mm": 59.5, "height_mm": 111.5 },
+      "B": { "label": "Top side",      "width_mm": 59.5, "height_mm": 30.9 },
+      "C": { "label": "Left side",     "width_mm": 30.9, "height_mm": 111.5 },
+      "D": { "label": "Bottom side",   "width_mm": 59.5, "height_mm": 30.9 },
+      "E": { "label": "Right side",    "width_mm": 30.9, "height_mm": 111.5 }
     },
     "notes": "Most common 2–3 knob pedal enclosure. Footswitch + LED + up to 3 small-body pots."
   },
@@ -34,11 +34,11 @@
     "outer_mm": { "length": 118.5, "width": 93.5, "height": 34.1 },
     "wall_thickness_mm": 2.5,
     "faces": {
-      "A": { "label": "Face (top)",    "width_mm": 118.5, "height_mm": 93.5 },
-      "B": { "label": "Top side",      "width_mm": 93.5,  "height_mm": 34.1 },
-      "C": { "label": "Left side",     "width_mm": 118.5, "height_mm": 34.1 },
-      "D": { "label": "Bottom side",   "width_mm": 93.5,  "height_mm": 34.1 },
-      "E": { "label": "Right side",    "width_mm": 118.5, "height_mm": 34.1 }
+      "A": { "label": "Face (top)",    "width_mm": 93.5, "height_mm": 118.5 },
+      "B": { "label": "Top side",      "width_mm": 93.5, "height_mm": 34.1 },
+      "C": { "label": "Left side",     "width_mm": 34.1, "height_mm": 118.5 },
+      "D": { "label": "Bottom side",   "width_mm": 93.5, "height_mm": 34.1 },
+      "E": { "label": "Right side",    "width_mm": 34.1, "height_mm": 118.5 }
     },
     "notes": "Wider than 1590B — comfortable for 4 knobs in 2x2."
   },
@@ -48,11 +48,11 @@
     "outer_mm": { "length": 121.5, "width": 66.0, "height": 39.3 },
     "wall_thickness_mm": 2.5,
     "faces": {
-      "A": { "label": "Face (top)",    "width_mm": 121.5, "height_mm": 66.0 },
-      "B": { "label": "Top side",      "width_mm": 66.0,  "height_mm": 39.3 },
-      "C": { "label": "Left side",     "width_mm": 121.5, "height_mm": 39.3 },
-      "D": { "label": "Bottom side",   "width_mm": 66.0,  "height_mm": 39.3 },
-      "E": { "label": "Right side",    "width_mm": 121.5, "height_mm": 39.3 }
+      "A": { "label": "Face (top)",    "width_mm": 66.0, "height_mm": 121.5 },
+      "B": { "label": "Top side",      "width_mm": 66.0, "height_mm": 39.3 },
+      "C": { "label": "Left side",     "width_mm": 39.3, "height_mm": 121.5 },
+      "D": { "label": "Bottom side",   "width_mm": 66.0, "height_mm": 39.3 },
+      "E": { "label": "Right side",    "width_mm": 39.3, "height_mm": 121.5 }
     },
     "notes": "Taller than 1590B, good depth for through-hole builds. PedalPCB Sherwood fits here."
   },
@@ -62,11 +62,11 @@
     "outer_mm": { "length": 188.0, "width": 119.5, "height": 37.5 },
     "wall_thickness_mm": 2.5,
     "faces": {
-      "A": { "label": "Face (top)",    "width_mm": 188.0, "height_mm": 119.5 },
+      "A": { "label": "Face (top)",    "width_mm": 119.5, "height_mm": 188.0 },
       "B": { "label": "Top side",      "width_mm": 119.5, "height_mm": 37.5 },
-      "C": { "label": "Left side",     "width_mm": 188.0, "height_mm": 37.5 },
+      "C": { "label": "Left side",     "width_mm": 37.5,  "height_mm": 188.0 },
       "D": { "label": "Bottom side",   "width_mm": 119.5, "height_mm": 37.5 },
-      "E": { "label": "Right side",    "width_mm": 188.0, "height_mm": 37.5 }
+      "E": { "label": "Right side",    "width_mm": 37.5,  "height_mm": 188.0 }
     },
     "notes": "Large — multi-effects, dual footswitch, complex pedals."
   },
@@ -76,11 +76,11 @@
     "outer_mm": { "length": 145.5, "width": 121.1, "height": 39.3 },
     "wall_thickness_mm": 2.5,
     "faces": {
-      "A": { "label": "Face (top)",    "width_mm": 145.5, "height_mm": 121.1 },
+      "A": { "label": "Face (top)",    "width_mm": 121.1, "height_mm": 145.5 },
       "B": { "label": "Top side",      "width_mm": 121.1, "height_mm": 39.3 },
-      "C": { "label": "Left side",     "width_mm": 145.5, "height_mm": 39.3 },
+      "C": { "label": "Left side",     "width_mm": 39.3,  "height_mm": 145.5 },
       "D": { "label": "Bottom side",   "width_mm": 121.1, "height_mm": 39.3 },
-      "E": { "label": "Right side",    "width_mm": 145.5, "height_mm": 39.3 }
+      "E": { "label": "Right side",    "width_mm": 39.3,  "height_mm": 145.5 }
     },
     "notes": "Large — 6+ knob layouts, dual footswitch."
   }

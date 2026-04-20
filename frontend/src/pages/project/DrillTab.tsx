@@ -110,6 +110,25 @@ export function DrillTab() {
     onSuccess: (results) => setExportResults(results),
   });
 
+  const reextract = useMutation({
+    mutationFn: () => api.projects.extractHoles(slug),
+    onSuccess: (extracted) => {
+      // Confirm before overwriting any pending edits.
+      const doReplace =
+        holes.length === 0 ||
+        confirm(
+          `Extracted ${extracted.length} holes from the PDF. Replace the current ${holes.length}?`,
+        );
+      if (doReplace) {
+        setHoles(extracted);
+        setSelectedIdx(null);
+      }
+    },
+    onError: (err) => {
+      alert(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
+    },
+  });
+
   const handleAdd = useCallback(
     (h: Hole) => {
       setHoles((prev) => {
@@ -214,6 +233,18 @@ export function DrillTab() {
           )}
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => reextract.mutate()}
+            disabled={reextract.isPending || !project.source_pdf}
+            title={
+              project.source_pdf
+                ? "Re-extract holes from the attached PDF"
+                : "No source PDF attached to this project"
+            }
+          >
+            {reextract.isPending ? "Extracting…" : "Extract from PDF"}
+          </Button>
           <Button variant="ghost" onClick={() => setPasteOpen(true)}>
             Paste Tayda…
           </Button>

@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from pedal_bench.core.models import BOMItem
+from pedal_bench.core.models import BOMItem, Enclosure, Hole
+from pedal_bench.io.drill_template_extract import extract_drill_holes
 from pedal_bench.io.pedalpcb_pdf import BOMParseError, extract_bom
 
 
@@ -28,6 +29,7 @@ class ExtractedBuildPackage:
     title: str | None = None
     enclosure: str | None = None
     bom: list[BOMItem] = field(default_factory=list)
+    holes: list[Hole] = field(default_factory=list)
     wiring_page_index: int | None = None
     drill_template_page_index: int | None = None
     warnings: list[str] = field(default_factory=list)
@@ -62,8 +64,17 @@ _TITLE_BLOCKLIST = {
 }
 
 
-def extract_build_package(pdf_path: Path | str) -> ExtractedBuildPackage:
-    """Run every extractor we've got and return a consolidated result."""
+def extract_build_package(
+    pdf_path: Path | str,
+    enclosure: Enclosure | None = None,
+) -> ExtractedBuildPackage:
+    """Run every extractor we've got and return a consolidated result.
+
+    If `enclosure` is provided, the drill-template extractor uses it to
+    scale vector coordinates to real-world millimeters. Without it, a
+    fall-back 1:1 PDF-point-to-mm scale is used (OK for templates drawn
+    at actual size, which is most PedalPCB builds).
+    """
     import pdfplumber
 
     pdf_path = Path(pdf_path)
@@ -94,6 +105,19 @@ def extract_build_package(pdf_path: Path | str) -> ExtractedBuildPackage:
         pkg.warnings.append(f"BOM extraction failed: {exc}")
     except Exception as exc:  # defensive: pdfplumber can throw on odd PDFs
         pkg.warnings.append(f"BOM extraction error: {type(exc).__name__}: {exc}")
+
+    try:
+        holes = extract_drill_holes(pdf_path, enclosure=enclosure)
+        if holes:
+            pkg.holes = holes
+        else:
+            pkg.warnings.append(
+                "Drill-template hole extraction yielded no confident results."
+            )
+    except Exception as exc:
+        pkg.warnings.append(
+            f"Drill-template extraction error: {type(exc).__name__}: {exc}"
+        )
 
     if pkg.title is None:
         pkg.warnings.append("Could not detect pedal title; using filename.")

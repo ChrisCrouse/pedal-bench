@@ -156,6 +156,7 @@ export interface PDFExtractOut {
   suggested_enclosure: string | null;
   enclosure_in_catalog: boolean;
   bom: BOMItem[];
+  holes: Hole[];
   wiring_page_index: number | null;
   drill_template_page_index: number | null;
   warnings: string[];
@@ -218,6 +219,10 @@ export const api = {
       }),
     exportSTLs: (slug: string) =>
       request<STLExport[]>(`/projects/${encodeURIComponent(slug)}/stl/export`, {
+        method: "POST",
+      }),
+    extractHoles: (slug: string) =>
+      request<Hole[]>(`/projects/${encodeURIComponent(slug)}/extract-holes`, {
         method: "POST",
       }),
   },

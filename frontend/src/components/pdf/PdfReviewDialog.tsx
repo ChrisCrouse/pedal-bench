@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { api, type PDFExtractOut } from "@/api/client";
+import { api, type Hole, type PDFExtractOut } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
@@ -103,23 +103,49 @@ export function PdfReviewDialog({ file, preview, onClose }: Props) {
           </label>
         </section>
 
-        <section>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            BOM preview
-          </div>
-          {preview.bom.length === 0 ? (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-              No BOM rows detected. You can add them manually on the BOM tab.
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              BOM preview
             </div>
-          ) : (
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="mb-2 font-semibold">
-                {preview.bom.length} rows:
+            {preview.bom.length === 0 ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                No BOM rows detected.
               </div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(bomByGroup)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([k, n]) => (
+            ) : (
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="mb-2 font-semibold">{preview.bom.length} rows:</div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(bomByGroup)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([k, n]) => (
+                      <span
+                        key={k}
+                        className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs dark:bg-zinc-800"
+                      >
+                        <span className="font-medium">{n}</span>
+                        <span className="text-zinc-500">{k}</span>
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Drill holes
+            </div>
+            {preview.holes.length === 0 ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                No drill-template holes detected. You can place them on the Drill tab.
+              </div>
+            ) : (
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="mb-2 font-semibold">
+                  {preview.holes.length} holes extracted:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {summarizeHoles(preview.holes).map(([k, n]) => (
                     <span
                       key={k}
                       className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs dark:bg-zinc-800"
@@ -128,9 +154,10 @@ export function PdfReviewDialog({ file, preview, onClose }: Props) {
                       <span className="text-zinc-500">{k}</span>
                     </span>
                   ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </section>
 
         {preview.warnings.length > 0 && (
@@ -167,4 +194,13 @@ export function PdfReviewDialog({ file, preview, onClose }: Props) {
       </div>
     </Dialog>
   );
+}
+
+function summarizeHoles(holes: Hole[]): [string, number][] {
+  const tally: Record<string, number> = {};
+  for (const h of holes) {
+    const key = h.icon ?? "hole";
+    tally[key] = (tally[key] ?? 0) + 1;
+  }
+  return Object.entries(tally).sort((a, b) => b[1] - a[1]);
 }
