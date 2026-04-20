@@ -64,6 +64,10 @@ class HoleIO(BaseModel):
     label: str | None = None
     powder_coat_margin: bool = True
     icon: IconKind | None = None
+    mirror_group: str | None = None
+    mirror_x_flipped: bool = False
+    mirror_y_flipped: bool = False
+    mirror_ce_flipped: bool = False
 
 
 class BuildProgressIO(BaseModel):

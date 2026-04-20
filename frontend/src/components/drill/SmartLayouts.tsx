@@ -91,7 +91,9 @@ export function SmartLayouts({
     onAppend(newHoles);
   };
 
-  const centerSelected = () => onMutateSelected({ x_mm: 0, y_mm: 0 });
+  const centerBoth = () => onMutateSelected({ x_mm: 0, y_mm: 0 });
+  const centerX = () => onMutateSelected({ x_mm: 0 });
+  const centerY = () => onMutateSelected({ y_mm: 0 });
 
   const applyPreset = (mode: "replace" | "append") => {
     if (!presetId || !presets.data) return;
@@ -282,26 +284,19 @@ export function SmartLayouts({
 
       <Section title="Selected hole">
         <div className="grid grid-cols-3 gap-2">
-          <Button size="sm" disabled={!selectedHole} onClick={centerSelected} title="Move to face center">
+          <Button size="sm" disabled={!selectedHole} onClick={centerX} title="Set x = 0 (centerline)">
+            Center X
+          </Button>
+          <Button size="sm" disabled={!selectedHole} onClick={centerY} title="Set y = 0 (centerline)">
+            Center Y
+          </Button>
+          <Button size="sm" disabled={!selectedHole} onClick={centerBoth} title="Move to face center (0, 0)">
             Center
           </Button>
-          <Button
-            size="sm"
-            disabled={!selectedHole}
-            onClick={() => selectedHole && onMutateSelected({ x_mm: -selectedHole.x_mm })}
-            title="Flip x across the vertical centerline"
-          >
-            Mirror X
-          </Button>
-          <Button
-            size="sm"
-            disabled={!selectedHole}
-            onClick={() => selectedHole && onMutateSelected({ y_mm: -selectedHole.y_mm })}
-            title="Flip y across the horizontal centerline"
-          >
-            Mirror Y
-          </Button>
         </div>
+        <p className="text-[11px] leading-snug text-zinc-500">
+          Mirror actions live in Placement aids above (live linked pairs) or in the Hole inspector (one-off twin).
+        </p>
       </Section>
     </div>
   );

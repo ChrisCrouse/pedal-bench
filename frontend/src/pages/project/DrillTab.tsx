@@ -17,8 +17,11 @@ import { TaydaPasteDialog } from "@/components/drill/TaydaPasteDialog";
 import {
   NO_MIRROR,
   canMirrorCE,
-  generateMirrorTwins,
+  createMirrorGroup,
   mirrorHole,
+  propagateDrag,
+  propagateNonPositional,
+  pruneSingletonGroups,
   type MirrorMode,
   type MirrorState,
 } from "@/components/drill/mirrors";
@@ -72,13 +75,14 @@ export function DrillTab() {
 
       const step = e.shiftKey ? 0.1 : 1;
       const apply = (dx: number, dy: number) => {
-        setHoles((prev) =>
-          prev.map((h, i) =>
+        setHoles((prev) => {
+          const updated = prev.map((h, i) =>
             i === selectedIdx
               ? { ...h, x_mm: round1(h.x_mm + dx), y_mm: round1(h.y_mm + dy) }
               : h,
-          ),
-        );
+          );
+          return propagateDrag(updated, selectedIdx);
+        });
         e.preventDefault();
       };
       if (e.key === "ArrowUp") apply(0, +step);
@@ -86,7 +90,9 @@ export function DrillTab() {
       else if (e.key === "ArrowLeft") apply(-step, 0);
       else if (e.key === "ArrowRight") apply(+step, 0);
       else if (e.key === "Delete" || e.key === "Backspace") {
-        setHoles((prev) => prev.filter((_, i) => i !== selectedIdx));
+        setHoles((prev) =>
+          pruneSingletonGroups(prev.filter((_, i) => i !== selectedIdx)),
+        );
         setSelectedIdx(null);
         e.preventDefault();
       } else if (e.key === "Escape") {
@@ -132,9 +138,9 @@ export function DrillTab() {
   const handleAdd = useCallback(
     (h: Hole) => {
       setHoles((prev) => {
-        const twins = generateMirrorTwins(h, mirrorState);
-        const next = [...prev, h, ...twins];
-        setSelectedIdx(prev.length); // select the seed hole
+        const group = createMirrorGroup(h, mirrorState);
+        const next = [...prev, ...group];
+        setSelectedIdx(prev.length); // select the seed (first of group)
         return next;
       });
     },
@@ -142,23 +148,41 @@ export function DrillTab() {
   );
 
   const handleMove = useCallback((idx: number, x_mm: number, y_mm: number) => {
-    setHoles((prev) => prev.map((h, i) => (i === idx ? { ...h, x_mm, y_mm } : h)));
+    setHoles((prev) => {
+      const updated = prev.map((h, i) => (i === idx ? { ...h, x_mm, y_mm } : h));
+      return propagateDrag(updated, idx);
+    });
   }, []);
 
   const handleChangeDiameter = useCallback((idx: number, diameter_mm: number) => {
-    setHoles((prev) => prev.map((h, i) => (i === idx ? { ...h, diameter_mm } : h)));
+    setHoles((prev) => {
+      const updated = prev.map((h, i) => (i === idx ? { ...h, diameter_mm } : h));
+      return propagateNonPositional(updated, idx, { diameter_mm });
+    });
   }, []);
 
-  const mutateSelected = useCallback((patch: Partial<Hole>) => {
-    if (selectedIdx === null) return;
-    setHoles((prev) =>
-      prev.map((h, i) => (i === selectedIdx ? { ...h, ...patch } : h)),
-    );
-  }, [selectedIdx]);
+  const mutateSelected = useCallback(
+    (patch: Partial<Hole>) => {
+      if (selectedIdx === null) return;
+      setHoles((prev) => {
+        let next = prev.map((h, i) =>
+          i === selectedIdx ? { ...h, ...patch } : h,
+        );
+        if ("x_mm" in patch || "y_mm" in patch || "side" in patch) {
+          next = propagateDrag(next, selectedIdx);
+        }
+        next = propagateNonPositional(next, selectedIdx, patch);
+        return next;
+      });
+    },
+    [selectedIdx],
+  );
 
   const deleteSelected = useCallback(() => {
     if (selectedIdx === null) return;
-    setHoles((prev) => prev.filter((_, i) => i !== selectedIdx));
+    setHoles((prev) =>
+      pruneSingletonGroups(prev.filter((_, i) => i !== selectedIdx)),
+    );
     setSelectedIdx(null);
   }, [selectedIdx]);
 

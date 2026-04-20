@@ -139,6 +139,14 @@ class Hole:
     label: Optional[str] = None
     powder_coat_margin: bool = True
     icon: Optional[IconKind] = None
+    # Mirror-group linkage. When two or more holes share a mirror_group,
+    # the UI keeps their positions in sync on drag. The three bool flags
+    # describe this hole's relationship to the group's canonical seed:
+    # mirror_x_flipped → x sign is negated relative to seed, etc.
+    mirror_group: Optional[str] = None
+    mirror_x_flipped: bool = False
+    mirror_y_flipped: bool = False
+    mirror_ce_flipped: bool = False
 
     def __post_init__(self) -> None:
         if self.side not in VALID_SIDE:
@@ -167,6 +175,14 @@ class Hole:
             d["label"] = self.label
         if self.icon is not None:
             d["icon"] = self.icon
+        if self.mirror_group is not None:
+            d["mirror_group"] = self.mirror_group
+            if self.mirror_x_flipped:
+                d["mirror_x_flipped"] = True
+            if self.mirror_y_flipped:
+                d["mirror_y_flipped"] = True
+            if self.mirror_ce_flipped:
+                d["mirror_ce_flipped"] = True
         return d
 
     @classmethod
@@ -184,6 +200,10 @@ class Hole:
             label=d.get("label"),
             powder_coat_margin=bool(d.get("powder_coat_margin", True)),
             icon=icon,
+            mirror_group=d.get("mirror_group"),
+            mirror_x_flipped=bool(d.get("mirror_x_flipped", False)),
+            mirror_y_flipped=bool(d.get("mirror_y_flipped", False)),
+            mirror_ce_flipped=bool(d.get("mirror_ce_flipped", False)),
         )
 
 

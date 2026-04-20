@@ -43,6 +43,12 @@ export interface Hole {
   label: string | null;
   powder_coat_margin: boolean;
   icon?: IconKind | null;
+  /** Holes sharing a mirror_group move together when one is dragged. */
+  mirror_group?: string | null;
+  /** Flip flags describe this hole's position relative to the group seed. */
+  mirror_x_flipped?: boolean;
+  mirror_y_flipped?: boolean;
+  mirror_ce_flipped?: boolean;
 }
 
 export interface SnapGuide {

@@ -42,6 +42,10 @@ def replace_holes(
                 label=h.label,
                 powder_coat_margin=h.powder_coat_margin,
                 icon=h.icon,
+                mirror_group=h.mirror_group,
+                mirror_x_flipped=h.mirror_x_flipped,
+                mirror_y_flipped=h.mirror_y_flipped,
+                mirror_ce_flipped=h.mirror_ce_flipped,
             )
             for h in payload.holes
         ]
