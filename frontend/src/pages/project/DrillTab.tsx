@@ -5,6 +5,7 @@ import { api, type Hole, type Project, type STLExport } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { EnclosureCanvas } from "@/components/drill/EnclosureCanvas";
 import { HoleInspector } from "@/components/drill/HoleInspector";
+import { PanelArtworkDialog } from "@/components/drill/PanelArtworkDialog";
 import { SmartLayouts } from "@/components/drill/SmartLayouts";
 import { TaydaPasteDialog } from "@/components/drill/TaydaPasteDialog";
 
@@ -25,6 +26,7 @@ export function DrillTab() {
   const [holes, setHoles] = useState<Hole[]>(project.holes);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [artworkOpen, setArtworkOpen] = useState(false);
   const [exportResults, setExportResults] = useState<STLExport[] | null>(null);
 
   // Detect dirty state by comparing current holes against the server copy.
@@ -170,6 +172,14 @@ export function DrillTab() {
             Paste Tayda…
           </Button>
           <Button
+            variant="ghost"
+            disabled={holes.length === 0}
+            onClick={() => setArtworkOpen(true)}
+            title="Download print-ready panel artwork (SVG / PNG)"
+          >
+            Panel artwork…
+          </Button>
+          <Button
             variant="secondary"
             disabled={!dirty || saveMutation.isPending}
             onClick={() => saveMutation.mutate(holes)}
@@ -230,6 +240,13 @@ export function DrillTab() {
         open={pasteOpen}
         onClose={() => setPasteOpen(false)}
         onImport={importTayda}
+      />
+      <PanelArtworkDialog
+        open={artworkOpen}
+        onClose={() => setArtworkOpen(false)}
+        enclosure={enclosure.data}
+        holes={holes}
+        pedalName={project.name}
       />
       {exportResults && (
         <ExportResultsOverlay
