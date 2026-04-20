@@ -161,6 +161,56 @@ async def create_project_from_pdf(
         tmp_path.unlink(missing_ok=True)
 
 
+@projects_router.post("/{slug}/attach-pdf", response_model=ProjectOut)
+async def attach_pdf_to_existing(
+    slug: str,
+    file: Annotated[UploadFile, File()],
+    store: ProjectStore = Depends(get_project_store),
+    catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
+) -> ProjectOut:
+    """Attach a PDF to an existing project.
+
+    Copies the file to source.pdf, caches the wiring page as PNG, and runs
+    the drill-template extractor — replacing project.holes only if the
+    extractor returns something. Leaves the BOM alone (user can import it
+    separately on the BOM tab).
+    """
+    if not store.exists(slug):
+        raise HTTPException(404, f"Unknown project {slug!r}")
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Upload must be a PDF.")
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(400, "Empty upload.")
+
+    project = store.load(slug)
+    pdir = store.project_dir(slug)
+    pdir.mkdir(parents=True, exist_ok=True)
+    dest_pdf = pdir / "source.pdf"
+    dest_pdf.write_bytes(pdf_bytes)
+    project.source_pdf = "source.pdf"
+
+    # Cache wiring diagram (page 4, 0-indexed = 3).
+    try:
+        render_page_to_png(dest_pdf, page_index=3, output_path=pdir / "wiring.png")
+    except Exception:
+        pass
+
+    # Try to extract drill holes using the project's enclosure spec.
+    encl = catalog.get(project.enclosure) if project.enclosure else None
+    try:
+        extracted = extract_drill_holes(dest_pdf, enclosure=encl)
+        if extracted:
+            project.holes = extracted
+    except Exception:
+        pass
+
+    store.save(project)
+    from pedal_bench.api.routes.projects import _project_to_out
+
+    return _project_to_out(project)
+
+
 def _fallback_name(filename: str) -> str:
     stem = Path(filename).stem
     # PedalPCB naming: "Sherwood-Overdrive.pdf" → "Sherwood Overdrive"

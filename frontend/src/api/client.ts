@@ -225,6 +225,8 @@ export const api = {
       request<Hole[]>(`/projects/${encodeURIComponent(slug)}/extract-holes`, {
         method: "POST",
       }),
+    attachPdf: (slug: string, file: File) =>
+      uploadPdf<Project>(`/projects/${encodeURIComponent(slug)}/attach-pdf`, file),
   },
   tayda: {
     parse: (text: string) =>

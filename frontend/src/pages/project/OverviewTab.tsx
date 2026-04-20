@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { api, type Project, type Status } from "@/api/client";
@@ -38,6 +38,15 @@ export function OverviewTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       navigate("/");
+    },
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachMutation = useMutation({
+    mutationFn: (file: File) => api.projects.attachPdf(slug, file),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects", slug] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 
@@ -93,6 +102,64 @@ export function OverviewTab() {
               {updateMutation.isPending ? "Saving…" : "Save changes"}
             </Button>
           </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="font-semibold">Source PDF</div>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm text-zinc-600 dark:text-zinc-400">
+              {project.source_pdf ? (
+                <>
+                  Attached:{" "}
+                  <code className="rounded bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
+                    {project.source_pdf}
+                  </code>
+                  . Replace it to re-run BOM and drill extraction.
+                </>
+              ) : (
+                <>No PDF attached yet. Drop one here to auto-extract drill holes.</>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,application/pdf"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) attachMutation.mutate(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                variant={project.source_pdf ? "secondary" : "primary"}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attachMutation.isPending}
+              >
+                {attachMutation.isPending
+                  ? "Attaching…"
+                  : project.source_pdf
+                    ? "Replace PDF"
+                    : "Attach PDF"}
+              </Button>
+            </div>
+          </div>
+          {attachMutation.isError && (
+            <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+              Attach failed: {(attachMutation.error as Error).message}
+            </div>
+          )}
+          {attachMutation.isSuccess && (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
+              PDF attached — drill holes auto-extracted (if the drill
+              template page could be read). Open the Drill tab to review.
+            </div>
+          )}
         </CardBody>
       </Card>
 
