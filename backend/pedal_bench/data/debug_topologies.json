@@ -1,0 +1,147 @@
+{
+  "_comment": "Expected pin voltages for common pedal ICs at the 9V / VREF=4.5V quiescent idle state. Audio-present voltages swing around these baselines. Tolerance is the acceptable absolute deviation in volts — outside this range, flag it. Pin pinouts and baseline values are canonical for the listed chip family.",
+
+  "supply": {
+    "vcc_v": 9.0,
+    "vref_v": 4.5,
+    "vref_tolerance_v": 0.3
+  },
+
+  "ics": {
+    "JRC4558": {
+      "description": "Dual op-amp (DIP-8). Tube Screamer / SD-1 / Boss family.",
+      "family": "dual-op-amp",
+      "package": "DIP-8",
+      "common_in": ["Tube Screamer TS808", "Tube Screamer TS9", "SD-1 Super Overdrive", "Blues Driver"],
+      "pins": [
+        { "pin": 1, "name": "OUT A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 2, "name": "-IN A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3, "name": "+IN A",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4, "name": "V-",      "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 5, "name": "+IN B",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 6, "name": "-IN B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7, "name": "OUT B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 8, "name": "V+",      "expected_v": 9.0, "tolerance_v": 0.3 }
+      ]
+    },
+    "TL072": {
+      "description": "Dual JFET-input op-amp (DIP-8). Klon Centaur + many boutique overdrives.",
+      "family": "dual-op-amp",
+      "package": "DIP-8",
+      "common_in": ["Klon Centaur", "BOSS CE-2", "many boutique circuits"],
+      "pins": [
+        { "pin": 1, "name": "OUT A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 2, "name": "-IN A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3, "name": "+IN A",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4, "name": "V-",      "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 5, "name": "+IN B",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 6, "name": "-IN B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7, "name": "OUT B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 8, "name": "V+",      "expected_v": 9.0, "tolerance_v": 0.3 }
+      ]
+    },
+    "OPA2134": {
+      "description": "Dual FET-input op-amp (DIP-8). Boutique / hifi circuits — Sherwood Overdrive.",
+      "family": "dual-op-amp",
+      "package": "DIP-8",
+      "common_in": ["PedalPCB Sherwood Overdrive"],
+      "pins": [
+        { "pin": 1, "name": "OUT A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 2, "name": "-IN A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3, "name": "+IN A",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4, "name": "V-",      "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 5, "name": "+IN B",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 6, "name": "-IN B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7, "name": "OUT B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 8, "name": "V+",      "expected_v": 9.0, "tolerance_v": 0.3 }
+      ]
+    },
+    "NE5532": {
+      "description": "Dual low-noise op-amp (DIP-8). Bass and hifi circuits.",
+      "family": "dual-op-amp",
+      "package": "DIP-8",
+      "pins": [
+        { "pin": 1, "name": "OUT A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 2, "name": "-IN A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3, "name": "+IN A",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4, "name": "V-",      "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 5, "name": "+IN B",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 6, "name": "-IN B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7, "name": "OUT B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 8, "name": "V+",      "expected_v": 9.0, "tolerance_v": 0.3 }
+      ]
+    },
+    "JRC4580": {
+      "description": "Dual op-amp (DIP-8). OCD, modern overdrives.",
+      "family": "dual-op-amp",
+      "package": "DIP-8",
+      "common_in": ["Fulltone OCD"],
+      "pins": [
+        { "pin": 1, "name": "OUT A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 2, "name": "-IN A",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3, "name": "+IN A",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4, "name": "V-",      "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 5, "name": "+IN B",   "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 6, "name": "-IN B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7, "name": "OUT B",   "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 8, "name": "V+",      "expected_v": 9.0, "tolerance_v": 0.3 }
+      ]
+    },
+    "LM308": {
+      "description": "Single op-amp (DIP-8). Classic Rat / Distortion+ circuits.",
+      "family": "single-op-amp",
+      "package": "DIP-8",
+      "common_in": ["ProCo Rat", "MXR Distortion+"],
+      "pins": [
+        { "pin": 1, "name": "COMP",    "expected_v": null, "tolerance_v": null },
+        { "pin": 2, "name": "-IN",     "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3, "name": "+IN",     "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4, "name": "V-",      "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 5, "name": "COMP",    "expected_v": null, "tolerance_v": null },
+        { "pin": 6, "name": "OUT",     "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7, "name": "V+",      "expected_v": 9.0, "tolerance_v": 0.3 },
+        { "pin": 8, "name": "GUARD",   "expected_v": null, "tolerance_v": null }
+      ]
+    },
+    "TL074": {
+      "description": "Quad JFET-input op-amp (DIP-14). Active EQs, complex circuits.",
+      "family": "quad-op-amp",
+      "package": "DIP-14",
+      "pins": [
+        { "pin": 1,  "name": "OUT A",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 2,  "name": "-IN A",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 3,  "name": "+IN A",  "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 4,  "name": "V+",     "expected_v": 9.0, "tolerance_v": 0.3 },
+        { "pin": 5,  "name": "+IN B",  "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 6,  "name": "-IN B",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 7,  "name": "OUT B",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 8,  "name": "OUT C",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 9,  "name": "-IN C",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 10, "name": "+IN C",  "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 11, "name": "V-",     "expected_v": 0.0, "tolerance_v": 0.1 },
+        { "pin": 12, "name": "+IN D",  "expected_v": 4.5, "tolerance_v": 0.3 },
+        { "pin": 13, "name": "-IN D",  "expected_v": 4.5, "tolerance_v": 0.5 },
+        { "pin": 14, "name": "OUT D",  "expected_v": 4.5, "tolerance_v": 0.5 }
+      ]
+    }
+  },
+
+  "audio_probe_procedure": [
+    "Power the pedal (9V DC, correct polarity). Confirm LED on and current draw <50 mA.",
+    "Engage bypass (footswitch). With no signal applied, gently tap the input jack tip with a finger — you should hear hum/buzz at the output. If silent, the bypass path is broken (check switch wiring and jack tip connections).",
+    "Apply a signal source (guitar or audio player). With bypass engaged, confirm clean signal passes through to the amp.",
+    "Engage the effect. If silent, suspect the effect signal path.",
+    "Build an audio probe: 100 nF cap in series with a 10\u201350 k\u03a9 resistor, probe tip on one end, alligator clip to an amp input on the other, ground clip to pedal ground.",
+    "Trace the signal by touching the probe to each op-amp output pin in circuit order. The first pin where audio disappears marks the dead stage.",
+    "At the dead stage: check the op-amp's supply pins (V+ \u2248 9 V, V- \u2248 0 V), then the non-inverting input (should be at VREF \u2248 4.5 V). Swap the IC if voltages look right but no output."
+  ],
+
+  "common_failures": [
+    { "symptom": "No LED, no sound at all", "likely_causes": ["DC jack wiring backwards (sleeve vs tip on a switching jack)", "Wrong polarity power supply", "Solder bridge on DC input"] },
+    { "symptom": "LED on, no sound bypassed OR engaged", "likely_causes": ["Input or output jack wired to tip/ring/sleeve incorrectly", "Cold solder joint on a jack lug", "Missing ground wire to the jack"] },
+    { "symptom": "Bypass works, effect is silent", "likely_causes": ["IC orientation reversed (check notch)", "VREF not at ~4.5 V (bad bias resistor or electrolytic)", "Wrong value cap in signal path", "Broken footswitch wiring"] },
+    { "symptom": "Effect works but very quiet", "likely_causes": ["Solder bridge shorting signal to ground", "Feedback resistor wrong value", "Pot wired backwards"] },
+    { "symptom": "Weird oscillation or squealing", "likely_causes": ["Socketed IC making poor contact", "Missing bypass cap near IC supply pin", "Ground loop in wiring layout", "High-gain op-amp with insufficient decoupling"] },
+    { "symptom": "LED dim or flickering", "likely_causes": ["Wrong CLR resistor value (too high)", "Reversed LED", "Failing footswitch contact"] }
+  ]
+}

@@ -94,6 +94,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface DebugPin {
+  pin: number;
+  name: string;
+  expected_v: number | null;
+  tolerance_v: number | null;
+}
+
+export interface DebugIC {
+  key: string;
+  description: string;
+  family: string;
+  package: string;
+  common_in: string[];
+  pins: DebugPin[];
+}
+
+export interface CommonFailure {
+  symptom: string;
+  likely_causes: string[];
+}
+
+export interface DebugDataset {
+  supply: { vcc_v: number; vref_v: number; vref_tolerance_v: number };
+  ics: DebugIC[];
+  audio_probe_procedure: string[];
+  common_failures: CommonFailure[];
+}
+
 export interface PDFExtractOut {
   suggested_name: string | null;
   suggested_enclosure: string | null;
@@ -120,6 +148,9 @@ export const api = {
   health: () => request<{ status: string; service: string }>("/health"),
   pdf: {
     extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),
+  },
+  debug: {
+    dataset: () => request<DebugDataset>("/debug/dataset"),
   },
   enclosures: {
     list: () => request<Enclosure[]>("/enclosures"),

@@ -5,9 +5,9 @@ import { ProjectPage } from "@/pages/ProjectPage";
 import { DecoderPage } from "@/pages/DecoderPage";
 import { BOMTab } from "@/pages/project/BOMTab";
 import { BenchTab } from "@/pages/project/BenchTab";
+import { DebugTab } from "@/pages/project/DebugTab";
 import { DrillTab } from "@/pages/project/DrillTab";
 import { OverviewTab } from "@/pages/project/OverviewTab";
-import { PlaceholderTab } from "@/pages/project/PlaceholderTab";
 
 export function App() {
   return (
@@ -22,15 +22,7 @@ export function App() {
             <Route path="drill" element={<DrillTab />} />
             <Route path="bom" element={<BOMTab />} />
             <Route path="bench" element={<BenchTab />} />
-            <Route
-              path="debug"
-              element={
-                <PlaceholderTab
-                  title="Debug helper"
-                  description="Per-IC expected voltages and triage for a silent first power-up."
-                />
-              }
-            />
+            <Route path="debug" element={<DebugTab />} />
           </Route>
         </Route>
       </Routes>

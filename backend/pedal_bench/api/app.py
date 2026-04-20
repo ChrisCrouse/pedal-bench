@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from pedal_bench import config
-from pedal_bench.api.routes import bom, enclosures, holes, pdf, projects, stl, tayda
+from pedal_bench.api.routes import bom, debug, enclosures, holes, pdf, projects, stl, tayda
 
 
 def create_app() -> FastAPI:
@@ -35,6 +35,7 @@ def create_app() -> FastAPI:
     app.include_router(tayda.router, prefix="/api/v1")
     app.include_router(pdf.router, prefix="/api/v1")
     app.include_router(pdf.projects_router, prefix="/api/v1")
+    app.include_router(debug.router, prefix="/api/v1")
 
     @app.get("/api/v1/health", tags=["meta"])
     def health() -> dict[str, str]:
