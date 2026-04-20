@@ -156,6 +156,59 @@
     },
 
     {
+      "id": "1590a-top-jacks-compact",
+      "enclosure": "1590A",
+      "category": "jacks",
+      "name": "1590A \u2014 top-mounted jacks (compact)",
+      "description": "Tight top jacks for mini pedals: compact 1/4\" at \u00b19 mm with a slim DC in the middle. 1590A face is only 38.1 \u00d7 95.3 mm so spacing is unforgiving.",
+      "holes": [
+        { "side": "B", "diameter_mm": 9.5, "x_mm": -9.0, "y_mm": 3.0,  "label": "INPUT",  "icon": "jack" },
+        { "side": "B", "diameter_mm": 8.1, "x_mm": 0.0,  "y_mm": -5.0, "label": "DC",     "icon": "dc-jack" },
+        { "side": "B", "diameter_mm": 9.5, "x_mm": 9.0,  "y_mm": 3.0,  "label": "OUTPUT", "icon": "jack" }
+      ]
+    },
+    {
+      "id": "1590a-2-knob-center",
+      "enclosure": "1590A",
+      "category": "controls",
+      "name": "1590A \u2014 2-knob center column",
+      "description": "Two Alpha 9 mm mini pots stacked on the centerline, tiny LED between, footswitch at the bottom. One of two layouts from the same multi-config template (see 4-knob grid variant).",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": 0.0, "y_mm": 28.0,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm": 0.0, "y_mm": 12.0,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": 0.0, "y_mm": -2.0,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm": 0.0, "y_mm": -32.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590a-4-knob-grid",
+      "enclosure": "1590A",
+      "category": "controls",
+      "name": "1590A \u2014 4-knob tight 2\u00d72",
+      "description": "Four Alpha 9 mm mini pots in a 2\u00d72 grid at \u00b110 mm x-spacing. Very packed \u2014 pot knobs (1/2\") will nearly touch. Companion layout to the 2-knob center column from the same multi-config template.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -10.0, "y_mm": 28.0,  "label": "POT 1",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  10.0, "y_mm": 28.0,  "label": "POT 2",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -10.0, "y_mm": 12.0,  "label": "POT 3",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  10.0, "y_mm": 12.0,  "label": "POT 4",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm":  0.0,  "y_mm": -2.0,  "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.7, "x_mm":  0.0,  "y_mm": -32.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
+      "id": "1590a-side-jacks",
+      "enclosure": "1590A",
+      "category": "jacks",
+      "name": "1590A \u2014 side-mounted jacks (C + E)",
+      "description": "Audio jacks on the left and right sides when side B is too cramped for top-mount \u2014 often the right call for 1590A. DC jack drilled on side E below the output.",
+      "holes": [
+        { "side": "C", "diameter_mm": 9.5, "x_mm": 0.0, "y_mm":  25.0, "label": "INPUT",  "icon": "jack" },
+        { "side": "E", "diameter_mm": 9.5, "x_mm": 0.0, "y_mm":  25.0, "label": "OUTPUT", "icon": "jack" },
+        { "side": "E", "diameter_mm": 8.1, "x_mm": 0.0, "y_mm": -25.0, "label": "DC",     "icon": "dc-jack" }
+      ]
+    },
+
+    {
       "id": "1590b-top-jacks",
       "enclosure": "1590B",
       "category": "jacks",
