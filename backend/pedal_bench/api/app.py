@@ -15,6 +15,7 @@ from pedal_bench.api.routes import (
     layout_presets,
     pdf,
     projects,
+    refdes_map,
     stl,
     tayda,
 )
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(drill_extract.router, prefix="/api/v1")
     app.include_router(debug.router, prefix="/api/v1")
     app.include_router(layout_presets.router, prefix="/api/v1")
+    app.include_router(refdes_map.router, prefix="/api/v1")
 
     @app.get("/api/v1/health", tags=["meta"])
     def health() -> dict[str, str]:

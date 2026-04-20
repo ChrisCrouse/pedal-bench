@@ -245,6 +245,11 @@ class Project:
     notes: str = ""
     created_at: str = field(default_factory=now_iso)
     updated_at: str = field(default_factory=now_iso)
+    # Per-component positions on the cached pcb_layout.png image.
+    # Keyed by BOMItem.location (R1, C2, IC1, CLR, LEVEL, …).
+    # Each value is [x_pct, y_pct] with 0 ≤ pct ≤ 1 in SVG orientation.
+    # Set manually by the user via click-to-tag on the BOM tab.
+    refdes_map: dict[str, list[float]] = field(default_factory=dict)
 
     def touch(self) -> None:
         self.updated_at = now_iso()
@@ -260,6 +265,7 @@ class Project:
             "holes": [h.to_dict() for h in self.holes],
             "progress": self.progress.to_dict(),
             "notes": self.notes,
+            "refdes_map": {k: list(v) for k, v in self.refdes_map.items()},
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -269,6 +275,13 @@ class Project:
         status = d.get("status", "planned")
         if status not in VALID_STATUS:
             status = "planned"
+        raw_refdes = d.get("refdes_map", {}) or {}
+        refdes_map: dict[str, list[float]] = {}
+        for k, v in raw_refdes.items():
+            try:
+                refdes_map[str(k)] = [float(v[0]), float(v[1])]
+            except (TypeError, ValueError, IndexError):
+                continue
         return cls(
             slug=d["slug"],
             name=d["name"],
@@ -279,6 +292,7 @@ class Project:
             holes=[Hole.from_dict(x) for x in d.get("holes", [])],
             progress=BuildProgress.from_dict(d.get("progress", {})),
             notes=d.get("notes", ""),
+            refdes_map=refdes_map,
             created_at=d.get("created_at", now_iso()),
             updated_at=d.get("updated_at", now_iso()),
         )

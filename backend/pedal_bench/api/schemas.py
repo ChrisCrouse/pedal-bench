@@ -86,6 +86,7 @@ class ProjectOut(BaseModel):
     holes: list[HoleIO] = []
     progress: BuildProgressIO = BuildProgressIO()
     notes: str = ""
+    refdes_map: dict[str, list[float]] = {}
     created_at: str
     updated_at: str
 

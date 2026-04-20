@@ -321,6 +321,20 @@
       ]
     },
     {
+      "id": "1590bb-3-knob-row-offset-fsw",
+      "enclosure": "1590BB",
+      "category": "controls",
+      "name": "1590BB \u2014 3-knob row, offset footswitch (Kliche style)",
+      "description": "Three pots in a single row near the top, LED near the left pot, footswitch offset toward the lower-right. Derived from the PedalPCB Kliche Overdrive drill template.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -30.0, "y_mm": 20.0,  "label": "GAIN",       "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":   0.0, "y_mm": 20.0,  "label": "TREBLE",     "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  30.0, "y_mm": 20.0,  "label": "VOLUME",     "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": -30.0, "y_mm":  -5.0, "label": "LED",        "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm":  20.0, "y_mm": -30.0, "label": "FOOTSWITCH", "icon": "footswitch" }
+      ]
+    },
+    {
       "id": "1590bb-top-jacks",
       "enclosure": "1590BB",
       "category": "jacks",
@@ -382,6 +396,31 @@
         { "side": "A", "diameter_mm": 6.35, "x_mm":  25.0, "y_mm": -15.0, "label": "LED B",   "icon": "led" },
         { "side": "A", "diameter_mm": 12.7, "x_mm": -25.0, "y_mm": -50.0, "label": "FSW A",   "icon": "footswitch" },
         { "side": "A", "diameter_mm": 12.7, "x_mm":  25.0, "y_mm": -50.0, "label": "FSW B",   "icon": "footswitch" }
+      ]
+    },
+
+    {
+      "id": "1590xx-parentheses-3fsw",
+      "enclosure": "1590XX",
+      "category": "combined",
+      "name": "1590XX \u2014 5-knob, 3 footswitch, side-mount jacks (Parentheses style)",
+      "description": "Complex multi-mode layout: three pots across the top, two pots + clipping toggle in the middle row, three footswitches with LEDs above them across the bottom. 1/4\" jacks + DC are side-mounted on side C. Derived from the PedalPCB Parentheses Fuzz 1590XX drill template.",
+      "holes": [
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -35.0, "y_mm":  45.0, "label": "DIST",      "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":   0.0, "y_mm":  45.0, "label": "FILTER",    "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  35.0, "y_mm":  45.0, "label": "BOOST",     "icon": "pot" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm": -20.0, "y_mm":  15.0, "label": "AMPLITUDE", "icon": "pot" },
+        { "side": "A", "diameter_mm": 6.35, "x_mm":   0.0, "y_mm":  15.0, "label": "CLIP",      "icon": "toggle" },
+        { "side": "A", "diameter_mm": 7.14, "x_mm":  20.0, "y_mm":  15.0, "label": "OCTBLEND",  "icon": "pot" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm": -40.0, "y_mm": -20.0, "label": "LED A",     "icon": "led" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm":   0.0, "y_mm": -20.0, "label": "LED B",     "icon": "led" },
+        { "side": "A", "diameter_mm": 4.4,  "x_mm":  40.0, "y_mm": -20.0, "label": "LED C",     "icon": "led" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm": -40.0, "y_mm": -55.0, "label": "ACTIVE",    "icon": "footswitch" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm":   0.0, "y_mm": -55.0, "label": "OCTAVE",    "icon": "footswitch" },
+        { "side": "A", "diameter_mm": 12.2, "x_mm":  40.0, "y_mm": -55.0, "label": "BOOST FS",  "icon": "footswitch" },
+        { "side": "C", "diameter_mm": 9.53, "x_mm":   0.0, "y_mm":  45.0, "label": "INPUT",     "icon": "jack" },
+        { "side": "C", "diameter_mm": 8.1,  "x_mm":   0.0, "y_mm":   0.0, "label": "DC",        "icon": "dc-jack" },
+        { "side": "C", "diameter_mm": 9.53, "x_mm":   0.0, "y_mm": -45.0, "label": "OUTPUT",    "icon": "jack" }
       ]
     },
 

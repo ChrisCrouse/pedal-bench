@@ -96,6 +96,8 @@ export interface Project {
   holes: Hole[];
   progress: BuildProgress;
   notes: string;
+  /** Per-refdes positions on the cached PCB layout image; manual tagging. */
+  refdes_map: Record<string, [number, number]>;
   created_at: string;
   updated_at: string;
 }
@@ -233,6 +235,13 @@ export const api = {
       }),
     attachPdf: (slug: string, file: File) =>
       uploadPdf<Project>(`/projects/${encodeURIComponent(slug)}/attach-pdf`, file),
+    setRefdesMap: (slug: string, map: Record<string, [number, number]>) =>
+      request<{ refdes_map: Record<string, [number, number]> }>(
+        `/projects/${encodeURIComponent(slug)}/refdes-map`,
+        { method: "PUT", body: JSON.stringify({ refdes_map: map }) },
+      ),
+    pcbLayoutImageUrl: (slug: string) =>
+      `/api/v1/projects/${encodeURIComponent(slug)}/pcb-layout.png`,
   },
   tayda: {
     parse: (text: string) =>

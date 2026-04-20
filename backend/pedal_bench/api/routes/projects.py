@@ -43,6 +43,7 @@ def _project_to_out(p: Project) -> ProjectOut:
             phase_notes=dict(p.progress.phase_notes),
         ),
         notes=p.notes,
+        refdes_map={k: list(v) for k, v in p.refdes_map.items()},
         created_at=p.created_at,
         updated_at=p.updated_at,
     )

@@ -148,7 +148,13 @@ async def create_project_from_pdf(
         try:
             render_page_to_png(dest_pdf, page_index=wiring_page, output_path=pdir / "wiring.png")
         except Exception:
-            # Missing wiring render is non-fatal.
+            pass
+
+        # Also cache the PCB layout page (page 1, index 0) for the BOM
+        # visualizer. Non-fatal if it fails.
+        try:
+            render_page_to_png(dest_pdf, page_index=0, output_path=pdir / "pcb_layout.png", dpi=180)
+        except Exception:
             pass
 
         store.save(project)
@@ -190,9 +196,13 @@ async def attach_pdf_to_existing(
     dest_pdf.write_bytes(pdf_bytes)
     project.source_pdf = "source.pdf"
 
-    # Cache wiring diagram (page 4, 0-indexed = 3).
+    # Cache wiring diagram (page 4, 0-indexed = 3) + PCB layout (page 1).
     try:
         render_page_to_png(dest_pdf, page_index=3, output_path=pdir / "wiring.png")
+    except Exception:
+        pass
+    try:
+        render_page_to_png(dest_pdf, page_index=0, output_path=pdir / "pcb_layout.png", dpi=180)
     except Exception:
         pass
 
