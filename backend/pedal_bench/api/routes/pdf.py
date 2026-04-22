@@ -23,11 +23,32 @@ from pedal_bench.api.deps import get_enclosure_catalog, get_project_store
 from pedal_bench.api.schemas import BOMItemIO, HoleIO, ProjectOut
 from pedal_bench.core.models import Enclosure
 from pedal_bench.core.project_store import ProjectStore
+from pedal_bench.io.ai_bom_extract import extract_bom_with_ai
 from pedal_bench.io.ai_drill_extract import extract_drill_holes_with_ai
 from pedal_bench.io.drill_template_extract import extract_drill_holes
 from pedal_bench.io.pdf_page_image import render_page_to_png
 from pedal_bench.io.pedalpcb_extract import extract_build_package
 from pedal_bench.io.pedalpcb_fetch import PedalPCBFetchError, fetch_from_product_url
+
+
+def _ai_bom_fallback(pkg, tmp_path):
+    """Invoke the AI BOM extractor when the deterministic table parser
+    came up empty (older PedalPCB PDFs use a multi-column Parts List
+    layout the heuristic doesn't handle). No-op if pkg.bom is non-empty
+    or the AI path fails.
+    """
+    if pkg.bom:
+        return
+    try:
+        ai_bom = extract_bom_with_ai(tmp_path)
+    except Exception:
+        ai_bom = None
+    if ai_bom:
+        pkg.bom = ai_bom
+        pkg.warnings.append(
+            f"BOM extracted via AI fallback ({len(ai_bom)} rows). "
+            "Review on the BOM tab before trusting."
+        )
 
 
 def _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=None):
@@ -106,6 +127,7 @@ async def pdf_extract(
             if scaled_holes:
                 pkg.holes = scaled_holes
         _ai_drill_fallback(pkg, tmp_path, catalog)
+        _ai_bom_fallback(pkg, tmp_path)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -155,6 +177,7 @@ async def create_project_from_pdf(
             if scaled_holes:
                 pkg.holes = scaled_holes
         _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=enclosure_key)
+        _ai_bom_fallback(pkg, tmp_path)
         effective_name = (name or pkg.title or _fallback_name(file.filename)).strip()
         if not effective_name:
             raise HTTPException(400, "Could not determine a project name.")
@@ -302,6 +325,8 @@ async def pdf_extract_from_url(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
             if scaled_holes:
                 pkg.holes = scaled_holes
+        _ai_drill_fallback(pkg, tmp_path, catalog)
+        _ai_bom_fallback(pkg, tmp_path)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -350,6 +375,7 @@ async def create_project_from_url(
             if scaled_holes:
                 pkg.holes = scaled_holes
         _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=enclosure_key)
+        _ai_bom_fallback(pkg, tmp_path)
 
         effective_name = (
             payload.name
