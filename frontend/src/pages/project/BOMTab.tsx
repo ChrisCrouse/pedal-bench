@@ -211,7 +211,7 @@ export function BOMTab() {
                   title={`${KIND_LABELS[k]} (${n})`}
                 >
                   <span
-                    className="h-2 w-2 rounded-full"
+                    className="h-2 w-2 shrink-0 rounded-full"
                     style={{ backgroundColor: color.fill }}
                   />
                   {KIND_LABELS[k]} <span className="opacity-70">({n})</span>

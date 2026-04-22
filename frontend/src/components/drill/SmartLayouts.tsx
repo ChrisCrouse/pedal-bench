@@ -407,7 +407,7 @@ function IconChip({
           : "border-zinc-200 bg-white text-zinc-700 hover:border-emerald-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300",
       ].join(" ")}
     >
-      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <span>{label}</span>
     </button>
   );
