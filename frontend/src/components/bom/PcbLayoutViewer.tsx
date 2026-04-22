@@ -37,8 +37,17 @@ export function PcbLayoutViewer({
 }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  const onImgLoad = useCallback(() => {
+    const img = imgRef.current;
+    if (img && img.naturalWidth && img.naturalHeight) {
+      setNaturalAspect(img.naturalWidth / img.naturalHeight);
+    }
+    setLoaded(true);
+  }, []);
 
   const handleClick = useCallback(
     (e: React.MouseEvent<SVGElement>) => {
@@ -54,8 +63,16 @@ export function PcbLayoutViewer({
     [tagMode, onTag],
   );
 
+  // Inner box keeps image + overlay locked to the same aspect ratio so the
+  // SVG dots always land on the same physical pixels as the image. Falls
+  // back to filling the whole container until the image's natural size is
+  // known.
+  const aspectStyle = naturalAspect
+    ? { aspectRatio: `${naturalAspect}`, maxWidth: "100%", maxHeight: "100%" }
+    : { width: "100%", height: "100%" };
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-zinc-100 dark:bg-zinc-900">
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-zinc-100 dark:bg-zinc-900">
       {!loaded && !error && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">
           Loading PCB layout…
@@ -69,12 +86,13 @@ export function PcbLayoutViewer({
           </div>
         </div>
       )}
+      <div className="relative" style={aspectStyle}>
       <img
         ref={imgRef}
         src={imageUrl}
         alt="PCB layout"
-        className={`h-full w-full object-contain ${loaded ? "" : "opacity-0"}`}
-        onLoad={() => setLoaded(true)}
+        className={`block h-full w-full object-contain ${loaded ? "" : "opacity-0"}`}
+        onLoad={onImgLoad}
         onError={() => setError(true)}
         draggable={false}
       />
@@ -136,6 +154,7 @@ export function PcbLayoutViewer({
           })}
         </svg>
       )}
+      </div>
       {tagMode && (
         <div className="pointer-events-none absolute left-2 top-2 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white shadow-md">
           Click to place <span className="font-mono">{tagMode}</span>
