@@ -252,8 +252,10 @@ export function BOMTab() {
                 <Th>Notes</Th>
                 <Th className="w-10 text-center">⚠</Th>
                 <Th className="w-16 text-right">Qty</Th>
-                <Th className="w-24 text-center">Tag</Th>
-                <Th className="w-10"> </Th>
+                <Th className="sticky right-[60px] z-20 w-24 bg-zinc-50 text-center shadow-[-4px_0_8px_-6px_rgba(0,0,0,0.25)] dark:bg-zinc-900">
+                  Tag
+                </Th>
+                <Th className="sticky right-0 z-20 w-[60px] bg-zinc-50 dark:bg-zinc-900"> </Th>
               </tr>
             </thead>
             <tbody>
@@ -264,6 +266,12 @@ export function BOMTab() {
                 const isTagged = !!refdesMap[item.location];
                 const isHovered = hoverLoc === item.location;
                 const isSelected = selectedLoc === item.location;
+                // Sticky cells need an opaque background that matches the row.
+                const stickyBg = isSelected
+                  ? "bg-emerald-50 dark:bg-emerald-950"
+                  : isHovered
+                    ? "bg-zinc-50 dark:bg-zinc-900"
+                    : "bg-white dark:bg-zinc-950";
                 return (
                   <tr
                     key={`${actualIdx}-${item.location}`}
@@ -326,7 +334,7 @@ export function BOMTab() {
                         className="w-12 text-right font-mono"
                       />
                     </Td>
-                    <Td className="text-center">
+                    <Td className={`sticky right-[60px] z-10 text-center shadow-[-4px_0_8px_-6px_rgba(0,0,0,0.25)] ${stickyBg}`}>
                       {isTagged ? (
                         <button
                           onClick={() => removeTag(item.location)}
@@ -357,7 +365,7 @@ export function BOMTab() {
                         </button>
                       )}
                     </Td>
-                    <Td>
+                    <Td className={`sticky right-0 z-10 ${stickyBg}`}>
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => setVerifyRow(item)}
