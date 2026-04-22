@@ -137,6 +137,17 @@ export function OverviewTab() {
                   e.target.value = "";
                 }}
               />
+              {project.source_pdf && (
+                <a
+                  href={`/api/v1/projects/${encodeURIComponent(slug)}/source.pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-md bg-zinc-200 px-3.5 py-1.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
+                  title="Open the build doc in a new tab. Use your browser's print dialog (set scale to 100%) to print the whole doc or specific pages."
+                >
+                  Open build doc
+                </a>
+              )}
               <Button
                 variant={project.source_pdf ? "secondary" : "primary"}
                 onClick={() => fileInputRef.current?.click()}

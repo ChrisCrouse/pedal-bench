@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { EnclosureCanvas } from "@/components/drill/EnclosureCanvas";
 import { HoleInspector } from "@/components/drill/HoleInspector";
 import { PanelArtworkDialog } from "@/components/drill/PanelArtworkDialog";
+import { DrillTemplateDialog } from "@/components/drill/DrillTemplateDialog";
 import { SmartLayouts } from "@/components/drill/SmartLayouts";
 import { TaydaPasteDialog } from "@/components/drill/TaydaPasteDialog";
 import {
@@ -55,6 +56,7 @@ export function DrillTab() {
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [artworkOpen, setArtworkOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [exportResults, setExportResults] = useState<STLExport[] | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [mirrorState, setMirrorState] = useState<MirrorState>(NO_MIRROR);
@@ -348,6 +350,14 @@ export function DrillTab() {
           <Button
             variant="ghost"
             disabled={holes.length === 0}
+            onClick={() => setTemplateOpen(true)}
+            title="Print-ready drill template with crosshairs for center-punching"
+          >
+            Print template…
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={holes.length === 0}
             onClick={() => setArtworkOpen(true)}
             title="Download print-ready panel artwork (SVG / PNG)"
           >
@@ -443,6 +453,13 @@ export function DrillTab() {
       <PanelArtworkDialog
         open={artworkOpen}
         onClose={() => setArtworkOpen(false)}
+        enclosure={enclosure.data}
+        holes={holes}
+        pedalName={project.name}
+      />
+      <DrillTemplateDialog
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
         enclosure={enclosure.data}
         holes={holes}
         pedalName={project.name}

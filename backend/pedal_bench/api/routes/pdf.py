@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from pedal_bench.api.deps import get_enclosure_catalog, get_project_store
@@ -302,6 +303,34 @@ def _fallback_name(filename: str) -> str:
     stem = Path(filename).stem
     # PedalPCB naming: "Sherwood-Overdrive.pdf" → "Sherwood Overdrive"
     return stem.replace("_", " ").replace("-", " ").strip().title() or "Untitled Build"
+
+
+@projects_router.get("/{slug}/source.pdf")
+def serve_source_pdf(
+    slug: str,
+    store: ProjectStore = Depends(get_project_store),
+) -> FileResponse:
+    """Serve the cached PedalPCB build doc inline so the browser opens it
+    in a new tab (instead of forcing a download). Builders without a 3D
+    printer use this to print specific pages — usually the drill template —
+    via the browser's print dialog."""
+    if not store.exists(slug):
+        raise HTTPException(404, f"Unknown project {slug!r}")
+    project = store.load(slug)
+    if not project.source_pdf:
+        raise HTTPException(404, "No PDF attached to this project.")
+    pdf_path = store.project_dir(slug) / project.source_pdf
+    if not pdf_path.is_file():
+        raise HTTPException(
+            404,
+            "PDF is referenced by the project but the file is missing on disk.",
+        )
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"{slug}.pdf",
+        headers={"Content-Disposition": f'inline; filename="{slug}.pdf"'},
+    )
 
 
 @router.post("/from-url", response_model=PDFExtractOut)
