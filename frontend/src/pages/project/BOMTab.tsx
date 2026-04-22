@@ -242,7 +242,7 @@ export function BOMTab() {
       {/* Split workspace */}
       <div className="flex min-h-0 flex-1">
         <div className="min-w-0 flex-1 overflow-auto" ref={tableBodyRef}>
-          <table className="min-w-full border-collapse text-sm">
+          <table className="min-w-full border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10 bg-zinc-50 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:bg-zinc-900">
               <tr>
                 <Th className="w-8">&nbsp;</Th>
@@ -278,7 +278,7 @@ export function BOMTab() {
                     onMouseEnter={() => setHoverLoc(item.location || null)}
                     onMouseLeave={() => setHoverLoc(null)}
                     className={[
-                      "border-b border-zinc-100 transition dark:border-zinc-800",
+                      "transition",
                       isSelected
                         ? "bg-emerald-50 dark:bg-emerald-900/20"
                         : isHovered
@@ -440,7 +440,12 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 }
 
 function Td({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <td className={`px-3 py-1 align-middle ${className ?? ""}`}>{children}</td>;
+  // border-separate means <tr> borders don't render; row separator goes per-cell.
+  return (
+    <td className={`border-b border-zinc-100 px-3 py-1 align-middle dark:border-zinc-800 ${className ?? ""}`}>
+      {children}
+    </td>
+  );
 }
 
 function CellInput({
