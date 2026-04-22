@@ -2,6 +2,7 @@ import { NavLink, Outlet, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { AIStatusPill } from "@/components/ui/AIStatusPill";
 
 export function AppShell() {
   const projects = useQuery({
@@ -77,6 +78,7 @@ function Header() {
         <span className="text-xs text-zinc-500">v0.2</span>
       </NavLink>
       <nav className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
+        <AIStatusPill />
         <NavLink
           to="/decoder"
           className={({ isActive }) =>
@@ -86,6 +88,16 @@ function Header() {
           }
         >
           Decoder
+        </NavLink>
+        <NavLink
+          to="/settings"
+          className={({ isActive }) =>
+            isActive
+              ? "font-medium text-emerald-700 dark:text-emerald-400"
+              : "hover:text-zinc-900 dark:hover:text-zinc-100"
+          }
+        >
+          Settings
         </NavLink>
         <a
           href="http://127.0.0.1:8642/docs"

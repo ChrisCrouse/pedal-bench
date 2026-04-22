@@ -100,13 +100,19 @@ def extract_drill_holes_with_ai(
     pdf_path: Path | str,
     page_index: int,
     enclosure: Enclosure,
+    *,
+    api_key: str | None = None,
 ) -> list[Hole] | None:
     """Ask Claude to read a drill-template page and return the holes.
 
     Returns None on any failure — caller treats None as "no AI result"
     and falls back to leaving holes empty.
+
+    ``api_key`` is the per-request key (BYOK from the browser); falls
+    back to the ANTHROPIC_API_KEY env var for self-hosters.
     """
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    effective_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not effective_key:
         return None
 
     try:
@@ -116,7 +122,7 @@ def extract_drill_holes_with_ai(
         return None
 
     try:
-        resp = _call_claude(png_bytes, enclosure)
+        resp = _call_claude(png_bytes, enclosure, api_key=effective_key)
     except Exception as exc:
         log.info("AI drill extract: API call failed: %s", exc)
         return None
@@ -146,10 +152,10 @@ def _render_page_png(pdf_path: Path, page_index: int) -> bytes:
         doc.close()
 
 
-def _call_claude(png_bytes: bytes, enclosure: Enclosure):
+def _call_claude(png_bytes: bytes, enclosure: Enclosure, *, api_key: str):
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
     face_summary = _describe_faces(enclosure)
 
     system = (

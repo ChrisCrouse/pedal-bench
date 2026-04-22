@@ -9,11 +9,25 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 
+from fastapi import Header
+
 from pedal_bench import config
 from pedal_bench.core.hints import HintLibrary
 from pedal_bench.core.inventory_store import InventoryStore
 from pedal_bench.core.models import Enclosure
 from pedal_bench.core.project_store import ProjectStore
+
+
+def get_request_api_key(
+    x_anthropic_key: str | None = Header(default=None, alias="X-Anthropic-Key"),
+) -> str | None:
+    """Per-request Anthropic API key from the browser (BYOK).
+
+    Frontend's apiKey module attaches X-Anthropic-Key on every fetch when
+    the user has set one in Settings. None means "no header sent" — the AI
+    modules will fall back to ANTHROPIC_API_KEY env var (self-host pattern).
+    """
+    return (x_anthropic_key or "").strip() or None
 
 
 @lru_cache(maxsize=1)

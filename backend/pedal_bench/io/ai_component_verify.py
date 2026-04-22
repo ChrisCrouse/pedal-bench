@@ -98,13 +98,16 @@ def verify_component_photo(
     expected_value: str,
     expected_type: str,
     expected_location: str | None = None,
+    *,
+    api_key: str | None = None,
 ) -> VerifyResult:
     if not image_bytes:
         return VerifyResult("error", "No image bytes provided.")
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    effective_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not effective_key:
         return VerifyResult(
             "error",
-            "No ANTHROPIC_API_KEY configured; component verification disabled.",
+            "No Anthropic API key — set one in Settings to enable component verification.",
         )
     if image_media_type not in {"image/jpeg", "image/png", "image/webp"}:
         return VerifyResult(
@@ -115,6 +118,7 @@ def verify_component_photo(
         resp = _call_claude(
             image_bytes, image_media_type,
             expected_value, expected_type, expected_location,
+            api_key=effective_key,
         )
     except Exception as exc:
         log.info("verify_component_photo: API call failed: %s", exc)
@@ -129,10 +133,12 @@ def _call_claude(
     expected_value: str,
     expected_type: str,
     expected_location: str | None,
+    *,
+    api_key: str,
 ):
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
 
     where = f" (BOM location {expected_location})" if expected_location else ""
     user_text = (

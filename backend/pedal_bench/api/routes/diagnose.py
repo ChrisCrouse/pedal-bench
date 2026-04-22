@@ -12,7 +12,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from pedal_bench.api.deps import get_project_store
+from pedal_bench.api.deps import get_project_store, get_request_api_key
 from pedal_bench.api.routes.debug import _load_dataset
 from pedal_bench.core.project_store import ProjectStore
 from pedal_bench.io.ai_diagnose import PinReading, diagnose
@@ -66,6 +66,7 @@ def diagnose_project(
     slug: str,
     payload: DiagnoseIn,
     store: ProjectStore = Depends(get_project_store),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> DiagnoseOut:
     if not store.exists(slug):
         raise HTTPException(404, f"Unknown project {slug!r}")
@@ -129,6 +130,7 @@ def diagnose_project(
         wiring_image=wiring_image_arg,
         project_name=project.name,
         bom_highlights=_bom_highlights(project),
+        api_key=api_key,
     )
 
     return DiagnoseOut(

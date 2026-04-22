@@ -3,6 +3,7 @@ import { AppShell } from "@/layout/AppShell";
 import { HomePage } from "@/pages/HomePage";
 import { ProjectPage } from "@/pages/ProjectPage";
 import { DecoderPage } from "@/pages/DecoderPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 import { BOMTab } from "@/pages/project/BOMTab";
 import { BenchTab } from "@/pages/project/BenchTab";
 import { DebugTab } from "@/pages/project/DebugTab";
@@ -16,6 +17,7 @@ export function App() {
         <Route path="/" element={<AppShell />}>
           <Route index element={<HomePage />} />
           <Route path="decoder" element={<DecoderPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="projects/:slug" element={<ProjectPage />}>
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<OverviewTab />} />

@@ -20,7 +20,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from pedal_bench.api.deps import get_enclosure_catalog, get_project_store
+from pedal_bench.api.deps import (
+    get_enclosure_catalog,
+    get_project_store,
+    get_request_api_key,
+)
 from pedal_bench.api.schemas import BOMItemIO, HoleIO, ProjectOut
 from pedal_bench.core.models import Enclosure
 from pedal_bench.core.project_store import ProjectStore
@@ -32,7 +36,7 @@ from pedal_bench.io.pedalpcb_extract import extract_build_package
 from pedal_bench.io.pedalpcb_fetch import PedalPCBFetchError, fetch_from_product_url
 
 
-def _ai_bom_fallback(pkg, tmp_path):
+def _ai_bom_fallback(pkg, tmp_path, api_key=None):
     """Invoke the AI BOM extractor when the deterministic table parser
     came up empty (older PedalPCB PDFs use a multi-column Parts List
     layout the heuristic doesn't handle). No-op if pkg.bom is non-empty
@@ -41,7 +45,7 @@ def _ai_bom_fallback(pkg, tmp_path):
     if pkg.bom:
         return
     try:
-        ai_bom = extract_bom_with_ai(tmp_path)
+        ai_bom = extract_bom_with_ai(tmp_path, api_key=api_key)
     except Exception:
         ai_bom = None
     if ai_bom:
@@ -52,7 +56,7 @@ def _ai_bom_fallback(pkg, tmp_path):
         )
 
 
-def _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=None):
+def _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=None, api_key=None):
     """Invoke the AI drill extractor when vector extraction came up empty.
 
     Mutates ``pkg`` in-place if the AI returned usable holes. No-op if the
@@ -68,7 +72,9 @@ def _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=None):
     if page_index is None:
         return
     try:
-        ai_holes = extract_drill_holes_with_ai(tmp_path, page_index, encl)
+        ai_holes = extract_drill_holes_with_ai(
+            tmp_path, page_index, encl, api_key=api_key
+        )
     except Exception:
         ai_holes = None
     if ai_holes:
@@ -107,6 +113,7 @@ class URLCreateIn(BaseModel):
 async def pdf_extract(
     file: Annotated[UploadFile, File()],
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> PDFExtractOut:
     """Preview-only extraction. Writes nothing; user can review and tweak
     before committing to a project."""
@@ -127,8 +134,8 @@ async def pdf_extract(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
             if scaled_holes:
                 pkg.holes = scaled_holes
-        _ai_drill_fallback(pkg, tmp_path, catalog)
-        _ai_bom_fallback(pkg, tmp_path)
+        _ai_drill_fallback(pkg, tmp_path, catalog, api_key=api_key)
+        _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -151,6 +158,7 @@ async def create_project_from_pdf(
     enclosure: Annotated[str | None, Form()] = None,
     store: ProjectStore = Depends(get_project_store),
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> ProjectOut:
     """Atomic: extract from PDF, create a new project with the attached
     file, pre-populated BOM, and cached wiring image. User overrides for
@@ -177,8 +185,11 @@ async def create_project_from_pdf(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
             if scaled_holes:
                 pkg.holes = scaled_holes
-        _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=enclosure_key)
-        _ai_bom_fallback(pkg, tmp_path)
+        _ai_drill_fallback(
+            pkg, tmp_path, catalog,
+            enclosure_override=enclosure_key, api_key=api_key,
+        )
+        _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
         effective_name = (name or pkg.title or _fallback_name(file.filename)).strip()
         if not effective_name:
             raise HTTPException(400, "Could not determine a project name.")
@@ -238,6 +249,7 @@ async def attach_pdf_to_existing(
     file: Annotated[UploadFile, File()],
     store: ProjectStore = Depends(get_project_store),
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> ProjectOut:
     """Attach a PDF to an existing project.
 
@@ -286,7 +298,8 @@ async def attach_pdf_to_existing(
             pkg_preview = extract_build_package(dest_pdf)
             if pkg_preview.drill_template_page_index is not None:
                 ai_holes = extract_drill_holes_with_ai(
-                    dest_pdf, pkg_preview.drill_template_page_index, encl
+                    dest_pdf, pkg_preview.drill_template_page_index, encl,
+                    api_key=api_key,
                 )
                 if ai_holes:
                     project.holes = ai_holes
@@ -337,6 +350,7 @@ def serve_source_pdf(
 async def pdf_extract_from_url(
     payload: URLExtractIn,
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> PDFExtractOut:
     """Preview-only: fetch a PedalPCB product-page URL, grab the build PDF,
     and run the same extractor as /pdf/extract. Nothing is written to disk."""
@@ -354,8 +368,8 @@ async def pdf_extract_from_url(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
             if scaled_holes:
                 pkg.holes = scaled_holes
-        _ai_drill_fallback(pkg, tmp_path, catalog)
-        _ai_bom_fallback(pkg, tmp_path)
+        _ai_drill_fallback(pkg, tmp_path, catalog, api_key=api_key)
+        _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -379,6 +393,7 @@ async def create_project_from_url(
     payload: URLCreateIn,
     store: ProjectStore = Depends(get_project_store),
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> ProjectOut:
     """Atomic: fetch a PedalPCB product URL, extract, create project with
     the PDF attached and images cached."""
@@ -403,8 +418,11 @@ async def create_project_from_url(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
             if scaled_holes:
                 pkg.holes = scaled_holes
-        _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=enclosure_key)
-        _ai_bom_fallback(pkg, tmp_path)
+        _ai_drill_fallback(
+            pkg, tmp_path, catalog,
+            enclosure_override=enclosure_key, api_key=api_key,
+        )
+        _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
 
         effective_name = (
             payload.name

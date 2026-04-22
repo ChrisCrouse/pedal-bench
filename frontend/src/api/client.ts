@@ -4,6 +4,7 @@
  * Types mirror backend/pedal_bench/api/schemas.py — keep in sync. When the
  * backend stabilizes we'll auto-generate this from the OpenAPI schema.
  */
+import { getApiKey } from "@/lib/apiKey";
 
 export type Side = "A" | "B" | "C" | "D" | "E";
 export type Status = "planned" | "ordered" | "building" | "finishing" | "done";
@@ -126,11 +127,20 @@ export interface Photo {
 
 const BASE = "/api/v1";
 
+function withApiKey(headers: HeadersInit | undefined): HeadersInit {
+  const key = getApiKey();
+  if (!key) return headers ?? {};
+  // Merge user-supplied headers + the BYOK header (BYOK wins on conflict).
+  return { ...(headers ?? {}), "X-Anthropic-Key": key };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json" },
+  const baseHeaders: HeadersInit = { "Content-Type": "application/json" };
+  const merged: RequestInit = {
     ...init,
-  });
+    headers: withApiKey({ ...baseHeaders, ...(init?.headers ?? {}) }),
+  };
+  const res = await fetch(BASE + path, merged);
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
@@ -182,7 +192,11 @@ async function uploadPdf<T>(path: string, file: File, fields: Record<string, str
   const fd = new FormData();
   fd.append("file", file);
   for (const [k, v] of Object.entries(fields)) fd.append(k, v);
-  const res = await fetch(BASE + path, { method: "POST", body: fd });
+  const res = await fetch(BASE + path, {
+    method: "POST",
+    body: fd,
+    headers: withApiKey(undefined),
+  });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${body}`);
@@ -190,8 +204,16 @@ async function uploadPdf<T>(path: string, file: File, fields: Record<string, str
   return res.json() as Promise<T>;
 }
 
+export interface AIStatus {
+  available: boolean;
+  source: "header" | "env" | null;
+}
+
 export const api = {
   health: () => request<{ status: string; service: string }>("/health"),
+  aiStatus: {
+    get: () => request<AIStatus>("/ai/status"),
+  },
   pdf: {
     extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),
     extractFromUrl: (url: string) =>

@@ -123,8 +123,14 @@ def diagnose(
     wiring_image: tuple[bytes, str] | None = None,
     project_name: str | None = None,
     bom_highlights: list[str] | None = None,
+    *,
+    api_key: str | None = None,
 ) -> DiagnosisResult:
-    """Ask Claude to reason about the fault and return structured advice."""
+    """Ask Claude to reason about the fault and return structured advice.
+
+    ``api_key`` is the per-request key (BYOK from the browser); falls
+    back to the ANTHROPIC_API_KEY env var for self-hosters.
+    """
     symptom = (symptom or "").strip()
     if not symptom:
         return DiagnosisResult(
@@ -133,11 +139,12 @@ def diagnose(
             next_probe="Describe what's wrong with the pedal first.",
             confidence="error",
         )
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    effective_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not effective_key:
         return DiagnosisResult(
             primary_suspect="(no API key)",
             reasoning="",
-            next_probe="Add ANTHROPIC_API_KEY to backend/.env.",
+            next_probe="Set your Anthropic API key in Settings, or add ANTHROPIC_API_KEY to backend/.env.",
             confidence="error",
         )
 
@@ -151,6 +158,7 @@ def diagnose(
             wiring_image=wiring_image,
             project_name=project_name,
             bom_highlights=bom_highlights or [],
+            api_key=effective_key,
         )
     except Exception as exc:
         log.info("diagnose: API call failed: %s", exc)
@@ -174,10 +182,11 @@ def _call_claude(
     wiring_image: tuple[bytes, str] | None,
     project_name: str | None,
     bom_highlights: list[str],
+    api_key: str,
 ):
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
 
     system = (
         "You are a DIY guitar pedal debugging assistant. You reason about "

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, type Hole, type PDFExtractOut } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { useAIAvailable } from "@/components/ui/AIRequiredNotice";
 
 export type PdfReviewSource =
   | { kind: "file"; file: File }
@@ -31,6 +32,7 @@ function sourceFallbackName(source: PdfReviewSource): string {
 export function PdfReviewDialog({ source, preview, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const aiAvailable = useAIAvailable();
 
   const enclosures = useQuery({
     queryKey: ["enclosures"],
@@ -131,6 +133,16 @@ export function PdfReviewDialog({ source, preview, onClose }: Props) {
             {preview.bom.length === 0 ? (
               <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 No BOM rows detected.
+                {aiAvailable === false && (
+                  <div className="mt-1 text-xs">
+                    This PDF uses an older "Parts List" layout that needs AI
+                    to read.{" "}
+                    <Link to="/settings" className="font-medium underline">
+                      Set up an Anthropic key →
+                    </Link>{" "}
+                    or create the project anyway and add the BOM by hand.
+                  </div>
+                )}
               </div>
             ) : (
               <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">

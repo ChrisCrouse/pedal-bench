@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { api, type BOMItem } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { AIRequiredNotice, useAIAvailable } from "@/components/ui/AIRequiredNotice";
 
 interface Props {
   slug: string;
@@ -39,6 +40,7 @@ export function VerifyComponentDialog({ slug, row, onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const aiAvailable = useAIAvailable();
 
   const verify = useMutation({
     mutationFn: (f: File) => api.verify.component(slug, row.location, f),
@@ -71,6 +73,8 @@ export function VerifyComponentDialog({ slug, row, onClose }: Props) {
       maxWidth="lg"
     >
       <div className="space-y-4">
+        <AIRequiredNotice feature="Component verification" />
+
         <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="font-medium">BOM expects:</div>
           <div className="mt-1 text-zinc-700 dark:text-zinc-300">
@@ -121,7 +125,7 @@ export function VerifyComponentDialog({ slug, row, onClose }: Props) {
               <Button
                 variant="primary"
                 size="sm"
-                disabled={verify.isPending || !file}
+                disabled={verify.isPending || !file || aiAvailable === false}
                 onClick={() => file && verify.mutate(file)}
               >
                 {verify.isPending ? "Checking…" : "Verify"}

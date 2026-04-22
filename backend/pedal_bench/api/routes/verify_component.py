@@ -19,7 +19,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from pedal_bench.api.deps import get_project_store
+from pedal_bench.api.deps import get_project_store, get_request_api_key
 from pedal_bench.core.project_store import ProjectStore
 from pedal_bench.io.ai_component_verify import verify_component_photo
 
@@ -45,6 +45,7 @@ async def verify_component(
     file: Annotated[UploadFile, File()],
     location: Annotated[str, Form()],
     store: ProjectStore = Depends(get_project_store),
+    api_key: str | None = Depends(get_request_api_key),
 ) -> VerifyOut:
     if not store.exists(slug):
         raise HTTPException(404, f"Unknown project {slug!r}")
@@ -86,6 +87,7 @@ async def verify_component(
         expected_value=row.value,
         expected_type=row.type,
         expected_location=row.location,
+        api_key=api_key,
     )
 
     return VerifyOut(

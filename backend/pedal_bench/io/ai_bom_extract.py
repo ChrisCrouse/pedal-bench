@@ -99,13 +99,21 @@ _TOOL_SCHEMA = {
 }
 
 
-def extract_bom_with_ai(pdf_path: Path | str) -> list[BOMItem] | None:
+def extract_bom_with_ai(
+    pdf_path: Path | str,
+    *,
+    api_key: str | None = None,
+) -> list[BOMItem] | None:
     """Find the parts-list page and ask Claude to read the BOM.
 
     Returns None on any failure (no key, API error, no parts page found,
     confidence='none', empty result).
+
+    ``api_key`` is the per-request key (BYOK from the browser); falls
+    back to the ANTHROPIC_API_KEY env var for self-hosters.
     """
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    effective_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not effective_key:
         return None
 
     pdf_path = Path(pdf_path)
@@ -121,7 +129,7 @@ def extract_bom_with_ai(pdf_path: Path | str) -> list[BOMItem] | None:
         return None
 
     try:
-        resp = _call_claude(png_bytes)
+        resp = _call_claude(png_bytes, api_key=effective_key)
     except Exception as exc:
         log.info("AI BOM extract: API call failed: %s", exc)
         return None
@@ -166,10 +174,10 @@ def _find_and_render_parts_page(pdf_path: Path) -> tuple[int | None, bytes | Non
         doc.close()
 
 
-def _call_claude(png_bytes: bytes):
+def _call_claude(png_bytes: bytes, *, api_key: str):
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = anthropic.Anthropic(api_key=api_key)
 
     system = (
         "You read parts lists from PedalPCB build documentation. The image "
