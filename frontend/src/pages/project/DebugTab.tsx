@@ -5,6 +5,7 @@ import { useOutletContext } from "react-router-dom";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { DiagnoseCard } from "@/components/debug/DiagnoseCard";
 
 interface Ctx {
   slug: string;
@@ -14,7 +15,7 @@ interface Ctx {
 type PinReading = { pin: number; measured: string };
 
 export function DebugTab() {
-  const { project } = useOutletContext<Ctx>();
+  const { slug, project } = useOutletContext<Ctx>();
   const dataset = useQuery({
     queryKey: ["debug", "dataset"],
     queryFn: api.debug.dataset,
@@ -108,6 +109,13 @@ export function DebugTab() {
           )}
         </CardBody>
       </Card>
+
+      <DiagnoseCard
+        slug={slug}
+        project={project}
+        selectedIc={selectedIc}
+        readings={pinReadings}
+      />
 
       <Card>
         <CardHeader>

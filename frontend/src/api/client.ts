@@ -272,6 +272,29 @@ export const api = {
         body: JSON.stringify({ text }),
       }),
   },
+  diagnose: {
+    run: (
+      slug: string,
+      payload: {
+        symptom: string;
+        selected_ic?: string | null;
+        readings: { pin: number; measured_v: number | null }[];
+        include_wiring_image: boolean;
+      },
+    ) =>
+      request<{
+        primary_suspect: string;
+        reasoning: string;
+        next_probe: string;
+        confidence: "high" | "medium" | "low" | "error";
+        alternative_suspects: string[];
+        caveats: string[];
+        used_wiring_image: boolean;
+      }>(`/projects/${encodeURIComponent(slug)}/debug/diagnose`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+  },
   verify: {
     component: (slug: string, location: string, file: File) => {
       const fd = new FormData();
