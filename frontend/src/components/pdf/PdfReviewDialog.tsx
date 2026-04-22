@@ -7,13 +7,28 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 
+export type PdfReviewSource =
+  | { kind: "file"; file: File }
+  | { kind: "url"; url: string };
+
 interface Props {
-  file: File;
+  source: PdfReviewSource;
   preview: PDFExtractOut;
   onClose: () => void;
 }
 
-export function PdfReviewDialog({ file, preview, onClose }: Props) {
+function sourceFallbackName(source: PdfReviewSource): string {
+  if (source.kind === "file") return source.file.name.replace(/\.pdf$/i, "");
+  try {
+    const path = new URL(source.url).pathname.replace(/\/+$/, "");
+    const slug = path.split("/").filter(Boolean).pop() ?? "";
+    return slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  } catch {
+    return "";
+  }
+}
+
+export function PdfReviewDialog({ source, preview, onClose }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -22,7 +37,9 @@ export function PdfReviewDialog({ file, preview, onClose }: Props) {
     queryFn: api.enclosures.list,
   });
 
-  const [name, setName] = useState(preview.suggested_name ?? file.name.replace(/\.pdf$/i, ""));
+  const [name, setName] = useState(
+    preview.suggested_name ?? sourceFallbackName(source),
+  );
   const [enclosure, setEnclosure] = useState(
     preview.enclosure_in_catalog && preview.suggested_enclosure
       ? preview.suggested_enclosure
@@ -38,7 +55,10 @@ export function PdfReviewDialog({ file, preview, onClose }: Props) {
   }, [preview]);
 
   const create = useMutation({
-    mutationFn: () => api.projects.createFromPdf(file, name, enclosure),
+    mutationFn: () =>
+      source.kind === "file"
+        ? api.projects.createFromPdf(source.file, name, enclosure)
+        : api.projects.createFromUrl(source.url, name, enclosure),
     onSuccess: (project) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       onClose();

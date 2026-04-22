@@ -11,6 +11,7 @@ import {
   classifyComponent,
   type ComponentKind,
 } from "@/components/bom/componentColors";
+import { VerifyComponentDialog } from "@/components/bom/VerifyComponentDialog";
 
 interface Ctx {
   slug: string;
@@ -45,6 +46,7 @@ export function BOMTab() {
   const [refdesMap, setRefdesMap] = useState<Record<string, [number, number]>>(
     project.refdes_map ?? {},
   );
+  const [verifyRow, setVerifyRow] = useState<BOMItem | null>(null);
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const dirty = useMemo(
@@ -356,13 +358,23 @@ export function BOMTab() {
                       )}
                     </Td>
                     <Td>
-                      <button
-                        onClick={() => removeRow(actualIdx)}
-                        className="text-xs text-red-600 hover:text-red-500"
-                        title="Remove row"
-                      >
-                        ×
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setVerifyRow(item)}
+                          disabled={!item.location.trim() || (!item.value.trim() && !item.type.trim())}
+                          className="text-[11px] text-emerald-700 underline hover:text-emerald-900 disabled:text-zinc-400 disabled:no-underline dark:text-emerald-400 dark:hover:text-emerald-200"
+                          title="Verify this component with a photo"
+                        >
+                          verify
+                        </button>
+                        <button
+                          onClick={() => removeRow(actualIdx)}
+                          className="text-xs text-red-600 hover:text-red-500"
+                          title="Remove row"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </Td>
                   </tr>
                 );
@@ -398,6 +410,13 @@ export function BOMTab() {
           )}
         </aside>
       </div>
+      {verifyRow && (
+        <VerifyComponentDialog
+          slug={slug}
+          row={verifyRow}
+          onClose={() => setVerifyRow(null)}
+        />
+      )}
     </div>
   );
 }

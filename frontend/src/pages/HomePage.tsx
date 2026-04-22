@@ -9,21 +9,35 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { PdfDropZone } from "@/components/pdf/PdfDropZone";
-import { PdfReviewDialog } from "@/components/pdf/PdfReviewDialog";
+import {
+  PdfReviewDialog,
+  type PdfReviewSource,
+} from "@/components/pdf/PdfReviewDialog";
 
 export function HomePage() {
   const [newOpen, setNewOpen] = useState(false);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingSource, setPendingSource] = useState<PdfReviewSource | null>(null);
   const [preview, setPreview] = useState<PDFExtractOut | null>(null);
+  const [url, setUrl] = useState("");
   const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects.list });
 
   const extract = useMutation({
     mutationFn: (file: File) => api.pdf.extract(file),
     onSuccess: (data, variables) => {
-      setPendingFile(variables);
+      setPendingSource({ kind: "file", file: variables });
       setPreview(data);
     },
   });
+
+  const extractUrl = useMutation({
+    mutationFn: (targetUrl: string) => api.pdf.extractFromUrl(targetUrl),
+    onSuccess: (data, variables) => {
+      setPendingSource({ kind: "url", url: variables });
+      setPreview(data);
+    },
+  });
+
+  const busy = extract.isPending || extractUrl.isPending;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -42,17 +56,51 @@ export function HomePage() {
 
       <section className="mt-6">
         <PdfDropZone
-          disabled={extract.isPending}
+          disabled={busy}
           onFile={(file) => extract.mutate(file)}
         />
+        <form
+          className="mt-3 flex flex-col gap-2 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!url.trim()) return;
+            extractUrl.mutate(url.trim());
+          }}
+        >
+          <Input
+            type="url"
+            placeholder="Or paste a PedalPCB product URL (pedalpcb.com/product/...)"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            disabled={busy}
+            className="flex-1"
+          />
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={busy || !url.trim()}
+          >
+            {extractUrl.isPending ? "Fetching…" : "Fetch build"}
+          </Button>
+        </form>
         {extract.isPending && (
           <div className="mt-2 text-center text-sm text-zinc-500">
             Extracting build package from PDF…
           </div>
         )}
+        {extractUrl.isPending && (
+          <div className="mt-2 text-center text-sm text-zinc-500">
+            Fetching PedalPCB product page and downloading the PDF…
+          </div>
+        )}
         {extract.isError && (
           <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
             PDF extraction failed: {(extract.error as Error).message}
+          </div>
+        )}
+        {extractUrl.isError && (
+          <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+            URL fetch failed: {(extractUrl.error as Error).message}
           </div>
         )}
       </section>
@@ -99,13 +147,14 @@ export function HomePage() {
       </section>
 
       <NewProjectDialog open={newOpen} onClose={() => setNewOpen(false)} />
-      {pendingFile && preview && (
+      {pendingSource && preview && (
         <PdfReviewDialog
-          file={pendingFile}
+          source={pendingSource}
           preview={preview}
           onClose={() => {
-            setPendingFile(null);
+            setPendingSource(null);
             setPreview(null);
+            setUrl("");
           }}
         />
       )}

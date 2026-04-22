@@ -123,3 +123,11 @@ class STLExportOut(BaseModel):
     side: Side
     path: str
     size_bytes: int
+
+
+class PhotoOut(BaseModel):
+    filename: str
+    url: str
+    uploaded_at: str
+    caption: str = ""
+    size_bytes: int

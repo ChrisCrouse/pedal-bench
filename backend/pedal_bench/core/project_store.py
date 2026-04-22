@@ -47,6 +47,12 @@ class ProjectStore:
     def project_dir(self, slug: str) -> Path:
         return self.root / slug
 
+    def photos_dir(self, slug: str) -> Path:
+        """Return <project>/photos/, creating it if missing."""
+        path = self.project_dir(slug) / "photos"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
     def exists(self, slug: str) -> bool:
         return (self.project_dir(slug) / PROJECT_JSON).exists()
 

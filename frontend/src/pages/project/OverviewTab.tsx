@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { PhotosSection } from "@/components/overview/PhotosSection";
 
 const STATUS_OPTIONS: Status[] = ["planned", "ordered", "building", "finishing", "done"];
 
@@ -162,6 +163,8 @@ export function OverviewTab() {
           )}
         </CardBody>
       </Card>
+
+      <PhotosSection slug={slug} />
 
       <Card>
         <CardHeader>

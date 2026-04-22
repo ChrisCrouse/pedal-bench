@@ -116,6 +116,14 @@ export interface STLExport {
   size_bytes: number;
 }
 
+export interface Photo {
+  filename: string;
+  url: string;
+  uploaded_at: string;
+  caption: string;
+  size_bytes: number;
+}
+
 const BASE = "/api/v1";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -186,6 +194,11 @@ export const api = {
   health: () => request<{ status: string; service: string }>("/health"),
   pdf: {
     extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),
+    extractFromUrl: (url: string) =>
+      request<PDFExtractOut>("/pdf/from-url", {
+        method: "POST",
+        body: JSON.stringify({ url }),
+      }),
   },
   debug: {
     dataset: () => request<DebugDataset>("/debug/dataset"),
@@ -209,6 +222,15 @@ export const api = {
       uploadPdf<Project>("/projects/from-pdf", file, {
         ...(name ? { name } : {}),
         ...(enclosure ? { enclosure } : {}),
+      }),
+    createFromUrl: (url: string, name?: string, enclosure?: string) =>
+      request<Project>("/projects/from-url", {
+        method: "POST",
+        body: JSON.stringify({
+          url,
+          ...(name ? { name } : {}),
+          ...(enclosure ? { enclosure } : {}),
+        }),
       }),
     update: (
       slug: string,
@@ -249,5 +271,50 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ text }),
       }),
+  },
+  verify: {
+    component: (slug: string, location: string, file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("location", location);
+      return fetch(
+        `/api/v1${`/projects/${encodeURIComponent(slug)}/bom/verify-component`}`,
+        { method: "POST", body: fd },
+      ).then(async (res) => {
+        if (!res.ok) {
+          const body = await res.text();
+          throw new Error(`${res.status} ${res.statusText}: ${body}`);
+        }
+        return res.json() as Promise<{
+          verdict: "match" | "mismatch" | "unsure" | "error";
+          explanation: string;
+          guess_value: string | null;
+          guess_type: string | null;
+          expected_value: string;
+          expected_type: string;
+          location: string;
+        }>;
+      });
+    },
+  },
+  photos: {
+    list: (slug: string) =>
+      request<Photo[]>(`/projects/${encodeURIComponent(slug)}/photos`),
+    upload: (slug: string, file: File, caption?: string) =>
+      uploadPdf<Photo>(
+        `/projects/${encodeURIComponent(slug)}/photos`,
+        file,
+        caption ? { caption } : {},
+      ),
+    updateCaption: (slug: string, filename: string, caption: string) =>
+      request<Photo>(
+        `/projects/${encodeURIComponent(slug)}/photos/${encodeURIComponent(filename)}`,
+        { method: "PATCH", body: JSON.stringify({ caption }) },
+      ),
+    delete: (slug: string, filename: string) =>
+      request<{ ok: boolean }>(
+        `/projects/${encodeURIComponent(slug)}/photos/${encodeURIComponent(filename)}`,
+        { method: "DELETE" },
+      ),
   },
 };

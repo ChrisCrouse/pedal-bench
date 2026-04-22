@@ -29,6 +29,12 @@ inventory.json
 # Personal scratch notes (not for the repo)
 projectnotes.txt
 
+# Secrets — API keys, etc. Never commit.
+.env
+.env.*
+!.env.example
+*.env.txt
+
 # User data stays in-repo (small JSON) — do not ignore `projects/` or
 # `inventory.json`. Do ignore generated STLs if you prefer to regenerate:
 # projects/*/drill/*.stl

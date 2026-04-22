@@ -8,8 +8,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 _BACKEND_DIR = Path(__file__).resolve().parent.parent        # backend/
 REPO_ROOT = _BACKEND_DIR.parent                              # pedal-bench/
+
+# Load backend/.env at import time so ANTHROPIC_API_KEY and friends are
+# available to any module that reads os.environ. Explicit path so behavior
+# is identical whether the server runs from repo root or backend/.
+load_dotenv(_BACKEND_DIR / ".env", override=False)
 
 DATA_DIR: Path = Path(__file__).resolve().parent / "data"
 
