@@ -40,7 +40,7 @@ seconds.
 
 ## Requirements
 
-- Python 3.12
+- Python 3.12 or 3.13 (3.14 isn't supported yet — `pypdfium2` / `build123d` don't ship 3.14 wheels)
 - Node.js LTS (18+, tested with 24.15)
 - Optional: 3D printer for parametric drill guides (PLA / PETG). Without
   one, use the print-ready 1:1 template instead — tape, center-punch,
@@ -95,7 +95,7 @@ A `Makefile` is provided for git bash / WSL users with the same targets.
 
 ## Architecture
 
-- **Backend** — Python 3.12 · FastAPI · `build123d` (parametric STL) ·
+- **Backend** — Python 3.12/3.13 · FastAPI · `build123d` (parametric STL) ·
   `pdfplumber` (BOM + vector layout) · `pypdfium2` (page rasterization)
   · `Pillow` · `anthropic` (optional AI features). Lives in [backend/](./backend/).
 - **Frontend** — React 19 · TypeScript 5 · Vite 6 · Tailwind v4 ·

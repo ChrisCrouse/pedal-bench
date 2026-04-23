@@ -2,7 +2,13 @@
 #
 # Windows users: run these from git bash. GNU Make ships with Git for Windows.
 
-PYTHON := .venv/Scripts/python.exe
+# Python binary lives at a different path inside .venv depending on OS.
+# Windows sets OS=Windows_NT in its environment; everything else uses POSIX.
+ifeq ($(OS),Windows_NT)
+    PYTHON := .venv/Scripts/python.exe
+else
+    PYTHON := .venv/bin/python
+endif
 PIP    := $(PYTHON) -m pip
 UVICORN := $(PYTHON) -m uvicorn
 PYTEST := $(PYTHON) -m pytest
@@ -25,7 +31,7 @@ help:
 
 .PHONY: install
 install:
-	python -m venv .venv || true
+	node scripts/setup-venv.mjs
 	$(PIP) install --upgrade pip
 	$(PIP) install -e "backend[dev]"
 	cd frontend && npm install
