@@ -5,6 +5,7 @@
  * backend stabilizes we'll auto-generate this from the OpenAPI schema.
  */
 import { getApiKey } from "@/lib/apiKey";
+import { getTaydaToken } from "@/lib/taydaToken";
 
 export type Side = "A" | "B" | "C" | "D" | "E";
 export type Status = "planned" | "ordered" | "building" | "finishing" | "done";
@@ -123,6 +124,13 @@ export interface Photo {
   uploaded_at: string;
   caption: string;
   size_bytes: number;
+}
+
+export interface TaydaPushOut {
+  design_id: string | null;
+  design_url: string | null;
+  status_code: number;
+  tayda_response: unknown;
 }
 
 const BASE = "/api/v1";
@@ -293,6 +301,22 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ text }),
       }),
+    push: (
+      slug: string,
+      body: { is_public?: boolean; name_override?: string } = {},
+    ) => {
+      // Tayda token rides as X-Tayda-Token on this one call only (not
+      // on every request). Second BYOK axis, mirrors X-Anthropic-Key.
+      const token = getTaydaToken();
+      return request<TaydaPushOut>(
+        `/projects/${encodeURIComponent(slug)}/tayda/push`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+          headers: token ? { "X-Tayda-Token": token } : {},
+        },
+      );
+    },
   },
   diagnose: {
     run: (

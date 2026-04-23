@@ -21,6 +21,7 @@ from pedal_bench.api.routes import (
     refdes_map,
     stl,
     tayda,
+    tayda_push,
     verify_component,
 )
 
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(verify_component.router, prefix="/api/v1")
     app.include_router(diagnose.router, prefix="/api/v1")
     app.include_router(ai_status.router, prefix="/api/v1")
+    app.include_router(tayda_push.router, prefix="/api/v1")
 
     @app.get("/api/v1/health", tags=["meta"])
     def health() -> dict[str, str]:
