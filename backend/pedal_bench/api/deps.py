@@ -30,14 +30,6 @@ def get_request_api_key(
     return (x_anthropic_key or "").strip() or None
 
 
-def get_tayda_token(
-    x_tayda_token: str | None = Header(default=None, alias="X-Tayda-Token"),
-) -> str | None:
-    """Per-request Tayda Kits API token (second BYOK axis, mirrors the
-    Anthropic-key pattern). Only attached to the Tayda push route; the
-    frontend doesn't send it on unrelated calls. None means no token —
-    the Tayda push route responds with 400 + a nudge to Settings."""
-    return (x_tayda_token or "").strip() or None
 
 
 @lru_cache(maxsize=1)

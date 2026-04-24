@@ -21,7 +21,6 @@ debugging — all in one place.
 | **Bench mode** | Grouped build-along checklist in solder order. Orientation hints on polarity-sensitive rows. Filters for "polarity only" and "pending only" + live progress bar. |
 | **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency. |
 | **Debug helper + AI diagnosis** | Per-IC expected pin voltages for 7 seed chips, audio-probe procedure, common-failure triage. AI diagnosis card reasons over symptom + measured voltages + cached wiring image and tells you what to probe next. |
-| **Send to Tayda** | One-click push of your drill layout straight into a Tayda Kits Box Designer draft for ordering. Uses your own Tayda session token (BYOK) — see below. |
 
 ## Quickstart
 
@@ -81,42 +80,6 @@ build, but a runaway loop on pay-as-you-go can cost more.
 
 The header in the app shows AI status: "AI: ready" / "AI: your key" /
 "Set up AI →". If you see the third one, click it.
-
-## Send to Tayda (optional)
-
-The Drill tab has a **Send to Tayda…** button that pushes your layout
-straight into a [Tayda Kits Box Designer](https://www.taydakits.com/)
-draft so you can order the enclosure pre-drilled. Uses your own Tayda
-account via a browser session token — your key never touches our server.
-
-**How to grab your token** (the flow is a bit clunky because Tayda
-doesn't publish an API-keys page; we're calling their site's own
-private endpoint):
-
-1. Log in at [taydakits.com](https://www.taydakits.com/) and open their
-   Box Designer.
-2. Open your browser's DevTools (F12) → **Network** tab → clear it.
-3. In the Box Designer, click **Save** on any design (an empty one is fine).
-4. In the Network list, find the `box_designs` request (POST to
-   `api.taydakits.com`) and click it.
-5. Open the **Headers** sub-tab → scroll to **Request Headers** → find
-   `Authorization: Bearer …`.
-6. Copy the value **after the word `Bearer ` and the space** — that's
-   your token.
-7. In pedal-bench: **Settings → Tayda Kits API token → Token** → paste
-   → Save.
-
-**Heads up — the token is session-scoped.** It'll expire when your
-Tayda login session ends (hours to days, depending on their settings).
-If "Send to Tayda" starts returning 401, repeat steps 1–7 with a fresh
-save to grab a new token.
-
-**⚠ Undocumented third-party API.** `api.taydakits.com` isn't
-publicly documented. Tayda could change or remove it without notice.
-If sends start failing with a new error pattern, it's probably their
-side — [open an issue](https://github.com/ChrisCrouse/pedal-bench/issues)
-with the error body (the UI surfaces Tayda's response verbatim) and
-we'll adapt the integration.
 
 ## Other commands
 

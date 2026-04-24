@@ -13,7 +13,6 @@ import { EnclosureCanvas } from "@/components/drill/EnclosureCanvas";
 import { HoleInspector } from "@/components/drill/HoleInspector";
 import { PanelArtworkDialog } from "@/components/drill/PanelArtworkDialog";
 import { DrillTemplateDialog } from "@/components/drill/DrillTemplateDialog";
-import { TaydaPushDialog } from "@/components/drill/TaydaPushDialog";
 import { SmartLayouts } from "@/components/drill/SmartLayouts";
 import { TaydaPasteDialog } from "@/components/drill/TaydaPasteDialog";
 import {
@@ -58,7 +57,6 @@ export function DrillTab() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [artworkOpen, setArtworkOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [taydaOpen, setTaydaOpen] = useState(false);
   const [exportResults, setExportResults] = useState<STLExport[] | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [mirrorState, setMirrorState] = useState<MirrorState>(NO_MIRROR);
@@ -366,14 +364,6 @@ export function DrillTab() {
             Panel artwork…
           </Button>
           <Button
-            variant="ghost"
-            disabled={holes.length === 0}
-            onClick={() => setTaydaOpen(true)}
-            title="Send this drill layout to your Tayda Kits Box Designer account"
-          >
-            Send to Tayda…
-          </Button>
-          <Button
             variant="secondary"
             disabled={!dirty || saveMutation.isPending}
             onClick={() => saveMutation.mutate(holes)}
@@ -473,13 +463,6 @@ export function DrillTab() {
         enclosure={enclosure.data}
         holes={holes}
         pedalName={project.name}
-      />
-      <TaydaPushDialog
-        open={taydaOpen}
-        onClose={() => setTaydaOpen(false)}
-        slug={slug}
-        projectName={project.name}
-        holeCount={holes.length}
       />
       {exportResults && (
         <ExportResultsOverlay
