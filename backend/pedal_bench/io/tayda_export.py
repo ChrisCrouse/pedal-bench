@@ -141,10 +141,17 @@ def push_to_tayda(payload: dict[str, Any], bearer_token: str) -> TaydaPushResult
     if not bearer_token or not bearer_token.strip():
         raise TaydaPushError("No Tayda API token provided.", status_code=401)
 
+    # Tayda's endpoint is a Rails API that normally receives calls from
+    # their own SPA. Missing Origin/Referer has been observed to trigger
+    # 500s rather than clean 4xx errors — include them so the controller
+    # doesn't crash before it can tell us what's actually wrong.
     headers = {
         "Authorization": f"Bearer {bearer_token.strip()}",
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Origin": "https://www.taydakits.com",
+        "Referer": "https://www.taydakits.com/",
         "User-Agent": USER_AGENT,
     }
 

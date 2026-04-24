@@ -6,6 +6,22 @@ import { getTaydaToken, subscribeToTaydaToken } from "@/lib/taydaToken";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 
+/** Error bodies from our backend look like:
+ *    "502 Bad Gateway: {\"detail\":{\"message\":..., \"sent_payload\":{...}}}"
+ *  Parse the JSON suffix and pull sent_payload out if it's there. */
+function extractSentPayload(errMsg: string): string {
+  const m = errMsg.match(/(\{[\s\S]*\})$/);
+  if (!m) return "(no payload captured)";
+  try {
+    const parsed = JSON.parse(m[1]);
+    const payload = parsed?.detail?.sent_payload;
+    if (payload) return JSON.stringify(payload, null, 2);
+  } catch {
+    /* fall through */
+  }
+  return "(couldn't parse error body)";
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -107,11 +123,19 @@ export function TaydaPushDialog({
         </label>
 
         {errorMessage && (
-          <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          <div className="space-y-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
             <div className="font-semibold">Push failed</div>
-            <div className="mt-1 whitespace-pre-wrap font-mono">
+            <div className="whitespace-pre-wrap break-all font-mono">
               {errorMessage}
             </div>
+            <details className="opacity-80">
+              <summary className="cursor-pointer select-none">
+                show payload we sent
+              </summary>
+              <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap rounded bg-red-100 p-2 text-[11px] dark:bg-red-950/40">
+                {extractSentPayload(errorMessage)}
+              </pre>
+            </details>
           </div>
         )}
 

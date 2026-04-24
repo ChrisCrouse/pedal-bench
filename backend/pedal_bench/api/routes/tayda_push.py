@@ -84,12 +84,15 @@ def push_project_to_tayda(
         result = push_to_tayda(tayda_payload, token)
     except TaydaPushError as exc:
         # Forward Tayda's status + body verbatim so the frontend can show
-        # the user exactly what Tayda complained about.
+        # the user exactly what Tayda complained about. Echo our sent
+        # payload too — if Tayda's error is unhelpful (e.g. a bare 500),
+        # the user can compare what we sent vs. a known-good capture.
         status = exc.status_code or 502
         detail = {
             "message": str(exc),
             "tayda_status": exc.status_code,
             "tayda_body": exc.body,
+            "sent_payload": tayda_payload,
         }
         raise HTTPException(status_code=_client_status(status), detail=detail) from exc
 
