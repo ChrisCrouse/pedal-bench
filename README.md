@@ -17,6 +17,7 @@ debugging — all in one place.
 | **Print template + 3D drill guides** | Print-ready 1:1 mm SVG/PNG with crosshairs at every hole center for center-punching (no printer-friendly enclosure required). Or one-click parametric STL drill guides via `build123d` for 3D printing. |
 | **Panel artwork export** | Print-ready SVG (vector) or 600-DPI PNG with knob labels and pedal title at 1:1 scale — for water-slide decals or UV print workflows. |
 | **BOM editor + photo verification** | Dense, inline-editable table. AI-powered "verify" button on each row: snap a photo of the part, get a match / mismatch / unsure verdict before soldering. |
+| **Order from Tayda** | One-click dialog dedupes your BOM by part, tailors per-kind search queries (resistor, cap, pot, IC), and opens Tayda search-result tabs in batches of 5. Per-part "ordered" checkboxes save shopping progress per project across sessions. |
 | **Build-log photos** | Drag-drop image upload per project. Captioned, timestamped, full-viewport view, easy delete. |
 | **Bench mode** | Grouped build-along checklist in solder order. Orientation hints on polarity-sensitive rows. Filters for "polarity only" and "pending only" + live progress bar. |
 | **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency. |
