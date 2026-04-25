@@ -189,10 +189,16 @@ def parse_diylc(content: bytes | str) -> DIYLCExtractResult:
             warnings=["No <components> element in file."],
         )
 
-    bom: list[BOMItem] = []
+    # First pass: collect every component as (kind, raw_loc, value).
+    @dataclass
+    class _Raw:
+        kind: str
+        loc: str
+        value: str
+
+    raws: list[_Raw] = []
     skipped = 0
     warnings: list[str] = []
-    seen_locations: set[str] = set()
 
     for child in components_el:
         tag = _local_tag(child)
@@ -200,44 +206,67 @@ def parse_diylc(content: bytes | str) -> DIYLCExtractResult:
         if kind is None:
             skipped += 1
             continue
-
         loc = (child.findtext("name") or "").strip()
-        # DIYLC sometimes has duplicate names (multiple symbol drops). Keep
-        # the first; merge quantities for subsequent.
         value = _extract_value(child, kind)
+        raws.append(_Raw(kind=kind, loc=loc, value=value))
 
-        if not loc:
-            # Without a refdes we can't dedupe sensibly. Skip and warn once.
-            if "missing-refdes" not in warnings:
-                warnings.append("missing-refdes")
-            skipped += 1
-            continue
+    # Heuristic: if the same refdes appears multiple times with *different*
+    # values, the .diy file is using descriptive/generic names (RobRobinette
+    # style — every resistor is "R1") instead of unique designators. In that
+    # case, group by (kind, value) so we get a real BOM. Otherwise keep
+    # refdes-based grouping which preserves PedalPCB-style layouts.
+    refdes_value_count: dict[str, set[str]] = {}
+    for r in raws:
+        if r.loc:
+            refdes_value_count.setdefault(r.loc, set()).add(r.value)
+    refdes_is_generic = any(len(vals) > 1 for vals in refdes_value_count.values())
 
-        if loc in seen_locations:
-            # Bump quantity on the existing row.
-            for item in bom:
-                if item.location == loc:
-                    item.quantity += 1
-                    break
-            continue
+    bom_by_key: dict[tuple, BOMItem] = {}
+    for r in raws:
+        type_str = _KIND_TYPE_LABELS.get(r.kind, "")
+        if refdes_is_generic or not r.loc:
+            # Group by (kind, value). The "location" becomes a synthesized
+            # refdes (R1, R2, ...) assigned later after totals are known.
+            key = (r.kind, r.value.lower())
+            existing = bom_by_key.get(key)
+            if existing is None:
+                bom_by_key[key] = BOMItem(
+                    location="",  # filled in after grouping
+                    value=r.value,
+                    type=type_str,
+                    quantity=1,
+                    polarity_sensitive=is_polarity_sensitive(type_str),
+                    orientation_hint=None,
+                )
+            else:
+                existing.quantity += 1
+        else:
+            # Group by refdes (PedalPCB convention: R1, R2, ... unique).
+            key = (r.loc,)
+            existing = bom_by_key.get(key)
+            if existing is None:
+                bom_by_key[key] = BOMItem(
+                    location=r.loc,
+                    value=r.value,
+                    type=type_str,
+                    quantity=1,
+                    polarity_sensitive=is_polarity_sensitive(type_str),
+                    orientation_hint=None,
+                )
+            else:
+                existing.quantity += 1
 
-        seen_locations.add(loc)
-        type_str = _KIND_TYPE_LABELS.get(kind, "")
+    bom = list(bom_by_key.values())
 
-        bom.append(
-            BOMItem(
-                location=loc,
-                value=value,
-                type=type_str,
-                quantity=1,
-                polarity_sensitive=is_polarity_sensitive(type_str),
-                orientation_hint=None,
-            )
+    # If we grouped by value, synthesize stable refdes per kind: R1, R2,
+    # R3 ... for resistors; C1, C2 ... for caps; etc.
+    if refdes_is_generic:
+        warnings.append(
+            "DIYLC file used non-unique reference designators (every resistor "
+            "named the same). Grouped BOM by component value instead — "
+            "auto-assigned refdes."
         )
-
-    if "missing-refdes" in warnings:
-        warnings = [w for w in warnings if w != "missing-refdes"]
-        warnings.append("Some components had no reference designator and were skipped.")
+        _assign_synthetic_refdes(bom)
 
     return DIYLCExtractResult(
         title=title,
@@ -245,6 +274,40 @@ def parse_diylc(content: bytes | str) -> DIYLCExtractResult:
         skipped_count=skipped,
         warnings=warnings,
     )
+
+
+_KIND_REFDES_PREFIX = {
+    "resistor": "R",
+    "film-cap": "C",
+    "electrolytic": "C",
+    "diode": "D",
+    "transistor": "Q",
+    "ic": "IC",
+    "pot": "VR",
+    "inductor": "L",
+    "switch": "SW",
+}
+
+
+def _kind_for_item(item: BOMItem) -> str:
+    """Re-derive kind from the type label set during parse_diylc."""
+    for k, label in _KIND_TYPE_LABELS.items():
+        if item.type == label:
+            return k
+    return "other"
+
+
+def _assign_synthetic_refdes(bom: list[BOMItem]) -> None:
+    """Mutate bom: give each item a unique location like R1, R2, C1, C2 ...
+    grouped by kind."""
+    counters: dict[str, int] = {}
+    # Sort within-kind by descending quantity so the most-used parts get R1.
+    bom.sort(key=lambda b: (_kind_for_item(b), -b.quantity, b.value))
+    for item in bom:
+        kind = _kind_for_item(item)
+        prefix = _KIND_REFDES_PREFIX.get(kind, "X")
+        counters[prefix] = counters.get(prefix, 0) + 1
+        item.location = f"{prefix}{counters[prefix]}"
 
 
 def _refdes_sort_key(loc: str) -> tuple[str, int]:

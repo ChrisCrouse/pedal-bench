@@ -160,6 +160,44 @@ def test_parse_dedupes_and_sorts_by_refdes():
     assert by_loc["R2"].quantity == 1
 
 
+def test_parse_groups_by_value_when_refdes_are_generic():
+    """RobRobinette-style files reuse 'R1' as a generic resistor name. Parser
+    should detect that and group by (kind, value) instead, synthesizing real
+    refdes."""
+    xml = b"""<?xml version="1.0" encoding="UTF-8" ?>
+<project>
+  <title>Princeton Reverb</title>
+  <components>
+    <diylc.passive.Resistor><name>R1</name><value value="100.0" unit="K"/></diylc.passive.Resistor>
+    <diylc.passive.Resistor><name>R1</name><value value="100.0" unit="K"/></diylc.passive.Resistor>
+    <diylc.passive.Resistor><name>R1</name><value value="100.0" unit="K"/></diylc.passive.Resistor>
+    <diylc.passive.Resistor><name>R1</name><value value="220.0" unit="K"/></diylc.passive.Resistor>
+    <diylc.passive.Resistor><name>R1</name><value value="220.0" unit="K"/></diylc.passive.Resistor>
+    <diylc.passive.Resistor><name>R1</name><value value="1.5" unit="K"/></diylc.passive.Resistor>
+    <diylc.passive.AxialElectrolyticCapacitor><name>25uF 25v</name><value value="25.0" unit="uF"/></diylc.passive.AxialElectrolyticCapacitor>
+    <diylc.passive.AxialElectrolyticCapacitor><name>25uF 25v</name><value value="25.0" unit="uF"/></diylc.passive.AxialElectrolyticCapacitor>
+    <diylc.passive.AxialFilmCapacitor><name>.1uF</name><value value="0.1" unit="uF"/></diylc.passive.AxialFilmCapacitor>
+  </components>
+</project>"""
+    r = parse_diylc(xml)
+    # Expect 4 distinct rows: 100K resistor (qty 3), 220K resistor (qty 2),
+    # 1.5K resistor (qty 1), 25uF electrolytic (qty 2), 0.1uF film (qty 1).
+    by_value = {(b.value, b.type[:8]): b for b in r.bom}
+    assert ("100K", "Resistor")[0] in [b.value for b in r.bom]
+    qtys = {b.value: b.quantity for b in r.bom if "Resistor" in b.type}
+    assert qtys["100K"] == 3
+    assert qtys["220K"] == 2
+    assert qtys["1.5K"] == 1
+
+    cap_qtys = {b.value: b.quantity for b in r.bom if "Electrolytic" in b.type}
+    assert cap_qtys["25uF"] == 2
+    # Synthetic refdes assigned (R1/R2/R3, C1/C2, ...).
+    assert all(b.location for b in r.bom), "every row should have a refdes"
+    resistor_refs = [b.location for b in r.bom if "Resistor" in b.type]
+    assert resistor_refs == sorted(resistor_refs)  # nicely numbered
+    assert any("non-unique" in w for w in r.warnings)
+
+
 def test_parse_handles_empty_components():
     xml = b"""<?xml version="1.0" encoding="UTF-8" ?>
 <project>
