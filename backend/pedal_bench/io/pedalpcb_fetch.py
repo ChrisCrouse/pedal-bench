@@ -32,6 +32,13 @@ TITLE_PATTERN = re.compile(
     r"<h1[^>]*class=\"[^\"]*product_title[^\"]*\"[^>]*>(.*?)</h1>",
     re.IGNORECASE | re.DOTALL,
 )
+# PedalPCB product pages link to the Tayda Manufacturing Center drill tool
+# preloaded with the build's hole layout. Capture so the project can deep-
+# link "Order drilled enclosure" later.
+DRILL_TOOL_PATTERN = re.compile(
+    r'href="(https?://drill\.taydakits\.com/[^"]+public_key=[^"]+)"',
+    re.IGNORECASE,
+)
 REQUEST_TIMEOUT = 20.0
 MAX_PDF_BYTES = 50 * 1024 * 1024  # 50 MB hard cap
 
@@ -44,6 +51,7 @@ class FetchedPDF:
     pdf_url: str
     product_url: str
     suggested_name: str | None  # from the product-page <h1>, if found
+    drill_tool_url: str | None = None  # Tayda Manufacturing drill-tool deep link
 
 
 class PedalPCBFetchError(Exception):
@@ -80,6 +88,7 @@ def fetch_from_product_url(url: str) -> FetchedPDF:
                 )
 
             suggested_name = _find_title(html)
+            drill_tool_url = _find_drill_tool(html)
 
             pdf_resp = client.get(pdf_url)
             pdf_resp.raise_for_status()
@@ -109,6 +118,7 @@ def fetch_from_product_url(url: str) -> FetchedPDF:
         pdf_url=pdf_url,
         product_url=product_url,
         suggested_name=suggested_name,
+        drill_tool_url=drill_tool_url,
     )
 
 
@@ -150,6 +160,11 @@ def _find_title(html: str) -> str | None:
     raw = re.sub(r"<[^>]+>", "", m.group(1))
     title = re.sub(r"\s+", " ", raw).strip()
     return title or None
+
+
+def _find_drill_tool(html: str) -> str | None:
+    m = DRILL_TOOL_PATTERN.search(html)
+    return m.group(1) if m else None
 
 
 __all__ = ["FetchedPDF", "PedalPCBFetchError", "fetch_from_product_url"]

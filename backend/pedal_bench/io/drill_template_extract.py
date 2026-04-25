@@ -328,11 +328,19 @@ def _scale_for_face(face: _FaceRect, enclosure: Enclosure | None) -> float:
 # ---- icon inference -------------------------------------------------------
 
 def _classify_icon(side: Side, diameter_mm: float) -> IconKind:
+    # Diameter bands (in mm) for the face A controls. Tuned to standard
+    # pedal hardware:
+    #   - LED bezel:        ~5.0 mm
+    #   - Mini-toggle body: ~6.0 mm (SPDT / DPDT bushing)
+    #   - Pot bushing:      ~7.0 mm (alpha 9mm) or 9.5 mm (alpha 16mm)
+    #   - Footswitch:       ~12.0 mm (3PDT bushing)
     if side == "A":
         if diameter_mm >= 10.5:
             return "footswitch"
         if diameter_mm <= 5.5:
             return "led"
+        if diameter_mm <= 6.5:
+            return "toggle"
         return "pot"
     if side == "B":
         if diameter_mm <= 8.5:

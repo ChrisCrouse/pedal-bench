@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext } from "react-router-dom";
 import { api, type BOMItem, type Project } from "@/api/client";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { PcbLayoutViewer } from "@/components/bom/PcbLayoutViewer";
 import {
@@ -50,7 +51,39 @@ export function BOMTab() {
   );
   const [verifyRow, setVerifyRow] = useState<BOMItem | null>(null);
   const [taydaOpen, setTaydaOpen] = useState(false);
+  const [reextractError, setReextractError] = useState<string | null>(null);
+  const [reextractPreview, setReextractPreview] = useState<{
+    bom: BOMItem[];
+    previous_count: number;
+    warnings: string[];
+  } | null>(null);
   const aiAvailable = useAIAvailable();
+
+  const reextractMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${slug}/reextract-bom`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return (await res.json()) as {
+        bom: BOMItem[];
+        previous_count: number;
+        warnings: string[];
+      };
+    },
+    onSuccess: (data) => {
+      setReextractError(null);
+      setReextractPreview(data);
+    },
+    onError: (err) => {
+      setReextractError(err instanceof Error ? err.message : String(err));
+    },
+  });
+
+  const applyReextract = () => {
+    if (reextractPreview) setBom(reextractPreview.bom);
+    setReextractPreview(null);
+  };
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const dirty = useMemo(
@@ -232,6 +265,16 @@ export function BOMTab() {
           )}
         </div>
         <div className="ml-auto flex gap-2">
+          {project.source_pdf && (
+            <Button
+              variant="ghost"
+              onClick={() => reextractMutation.mutate()}
+              disabled={reextractMutation.isPending}
+              title="Re-run the BOM parser against the project's cached PDF"
+            >
+              {reextractMutation.isPending ? "Re-extracting…" : "Re-extract BOM"}
+            </Button>
+          )}
           <Button
             variant="ghost"
             onClick={() => setTaydaOpen(true)}
@@ -250,6 +293,11 @@ export function BOMTab() {
           </Button>
         </div>
       </div>
+      {reextractError && (
+        <div className="border-b border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          Re-extract failed: {reextractError}
+        </div>
+      )}
 
       {/* Split workspace */}
       <div className="flex min-h-0 flex-1">
@@ -457,6 +505,61 @@ export function BOMTab() {
           onClose={() => setTaydaOpen(false)}
         />
       )}
+      <Dialog
+        open={reextractPreview !== null}
+        onClose={() => setReextractPreview(null)}
+        title="Re-extract BOM from PDF"
+        maxWidth="md"
+      >
+        {reextractPreview && (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              Re-ran the BOM parser against this project's cached PDF.
+            </p>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="text-xs uppercase tracking-wider text-zinc-500">Current</div>
+                <div className="text-2xl font-semibold">{reextractPreview.previous_count}</div>
+                <div className="text-xs text-zinc-500">rows in editor</div>
+              </div>
+              <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/40">
+                <div className="text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  From PDF
+                </div>
+                <div className="text-2xl font-semibold text-emerald-800 dark:text-emerald-300">
+                  {reextractPreview.bom.length}
+                </div>
+                <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                  rows extracted
+                </div>
+              </div>
+            </div>
+            {reextractPreview.warnings.length > 0 && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                <div className="mb-1 font-semibold">Warnings</div>
+                <ul className="list-inside list-disc space-y-0.5">
+                  {reextractPreview.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-xs text-zinc-500">
+              Replacing only updates the editor. Click <strong>Save</strong> on the
+              BOM tab afterwards to persist — until then your current rows are
+              still on disk.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setReextractPreview(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={applyReextract}>
+                Replace editor with {reextractPreview.bom.length} rows
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

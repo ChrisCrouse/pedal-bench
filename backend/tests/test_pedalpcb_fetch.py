@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import pytest
 
+from pathlib import Path
+
 from pedal_bench.io.pedalpcb_fetch import (
     PedalPCBFetchError,
+    _find_drill_tool,
     _find_pdf_link,
     _find_title,
     _validate_product_url,
@@ -107,3 +110,34 @@ class TestFindTitle:
     def test_returns_none_without_title(self) -> None:
         html = "<html><body><h1>different heading</h1></body></html>"
         assert _find_title(html) is None
+
+
+# -- Drill-tool deep link ---------------------------------------------------
+
+
+class TestFindDrillTool:
+    def test_finds_taydakits_drill_link(self) -> None:
+        html = (
+            '<p><a href="https://drill.taydakits.com/box-designs/new'
+            '?public_key=NmZuV2JzM1paYkIrUnVHQjJnMGdjQT09Cg==" '
+            'target="_blank" rel="noopener">Tayda Electronics Drill Template</a></p>'
+        )
+        result = _find_drill_tool(html)
+        assert result is not None
+        assert "drill.taydakits.com" in result
+        assert "public_key=" in result
+
+    def test_returns_none_without_drill_link(self) -> None:
+        html = '<p><a href="https://www.pedalpcb.com/forum/">Forum</a></p>'
+        assert _find_drill_tool(html) is None
+
+    def test_finds_drill_link_in_circulator_snapshot(self) -> None:
+        snapshot = (
+            Path(__file__).parent / "data" / "pedalpcb_circulator.html"
+        )
+        if not snapshot.is_file():
+            return  # snapshot not committed yet
+        html = snapshot.read_text(encoding="utf-8")
+        result = _find_drill_tool(html)
+        assert result is not None
+        assert "public_key=" in result

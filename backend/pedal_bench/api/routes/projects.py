@@ -46,6 +46,7 @@ def _project_to_out(p: Project) -> ProjectOut:
         refdes_map={k: list(v) for k, v in p.refdes_map.items()},
         created_at=p.created_at,
         updated_at=p.updated_at,
+        drill_tool_url=p.drill_tool_url,
     )
 
 
@@ -68,6 +69,11 @@ def _hole_to_out(h: Hole) -> HoleIO:
     return HoleIO(
         side=h.side, x_mm=h.x_mm, y_mm=h.y_mm, diameter_mm=h.diameter_mm,
         label=h.label, powder_coat_margin=h.powder_coat_margin,
+        icon=h.icon,
+        mirror_group=h.mirror_group,
+        mirror_x_flipped=h.mirror_x_flipped,
+        mirror_y_flipped=h.mirror_y_flipped,
+        mirror_ce_flipped=h.mirror_ce_flipped,
     )
 
 

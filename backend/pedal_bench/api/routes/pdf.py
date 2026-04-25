@@ -31,9 +31,19 @@ from pedal_bench.core.project_store import ProjectStore
 from pedal_bench.io.ai_bom_extract import extract_bom_with_ai
 from pedal_bench.io.ai_drill_extract import extract_drill_holes_with_ai
 from pedal_bench.io.drill_template_extract import extract_drill_holes
+from pedal_bench.io.pedalpcb_pdf import BOMParseError, extract_bom
+from pedal_bench.io.tayda_drill_api import (
+    TaydaDrillAPIError,
+    fetch_holes as fetch_tayda_drill_holes,
+)
 from pedal_bench.io.pdf_page_image import render_page_to_png
 from pedal_bench.io.pedalpcb_extract import extract_build_package
 from pedal_bench.io.pedalpcb_fetch import PedalPCBFetchError, fetch_from_product_url
+from pedal_bench.io.taydakits_extract import (
+    TaydakitsBuildPackage,
+    extract_build_package_from_url,
+)
+from pedal_bench.io.taydakits_fetch import TaydakitsFetchError, USER_AGENT as TAYDAKITS_UA
 
 
 def _ai_bom_fallback(pkg, tmp_path, api_key=None):
@@ -50,10 +60,9 @@ def _ai_bom_fallback(pkg, tmp_path, api_key=None):
         return
     if api_key is None:
         pkg.warnings.append(
-            "BOM couldn't be auto-extracted from this PDF. Modern PedalPCB "
-            "build docs parse automatically; older 'Parts List' layouts "
-            "need AI extraction. Open the BOM tab to enter parts manually, "
-            "or add an Anthropic API key in Settings to enable AI extraction."
+            "BOM couldn't be auto-extracted from this PDF. Open the BOM "
+            "tab to enter parts manually, or add an Anthropic API key in "
+            "Settings to enable AI extraction as a fallback."
         )
         return
     try:
@@ -117,6 +126,9 @@ class PDFExtractOut(BaseModel):
     wiring_page_index: int | None
     drill_template_page_index: int | None
     warnings: list[str]
+    # Workflow hand-offs (e.g. "drill coords aren't auto-imported, do X").
+    # Distinct from `warnings`, which means something went wrong.
+    next_steps: list[str] = []
 
 
 class URLExtractIn(BaseModel):
@@ -168,6 +180,7 @@ async def pdf_extract(
         wiring_page_index=pkg.wiring_page_index,
         drill_template_page_index=pkg.drill_template_page_index,
         warnings=pkg.warnings,
+        next_steps=pkg.next_steps,
     )
 
 
@@ -332,10 +345,186 @@ async def attach_pdf_to_existing(
     return _project_to_out(project)
 
 
+class ReextractBOMOut(BaseModel):
+    """Preview of a BOM re-extraction. Frontend confirms with PUT /bom."""
+
+    bom: list[BOMItemIO]
+    previous_count: int
+    warnings: list[str]
+
+
+@projects_router.post("/{slug}/reextract-bom", response_model=ReextractBOMOut)
+def reextract_bom_from_source(
+    slug: str,
+    store: ProjectStore = Depends(get_project_store),
+    api_key: str | None = Depends(get_request_api_key),
+) -> ReextractBOMOut:
+    """Re-run the BOM extractor against a project's cached source.pdf.
+
+    Doesn't write anything — the user confirms via the existing PUT /bom
+    flow after reviewing the preview. Useful when a project was created
+    against an older buggier extractor and ended up with a partial BOM.
+    """
+    if not store.exists(slug):
+        raise HTTPException(404, f"Unknown project {slug!r}")
+    project = store.load(slug)
+    if not project.source_pdf:
+        raise HTTPException(
+            400,
+            "This project has no attached PDF — re-extraction needs a source.pdf. "
+            "Use 'Attach PDF' on the project first.",
+        )
+    pdf_path = store.project_dir(slug) / project.source_pdf
+    if not pdf_path.is_file():
+        raise HTTPException(
+            404,
+            "PDF is referenced by the project but the file is missing on disk.",
+        )
+
+    warnings: list[str] = []
+    new_bom = []
+    try:
+        new_bom = extract_bom(pdf_path)
+    except BOMParseError as exc:
+        warnings.append(f"BOM extraction failed: {exc}")
+    except Exception as exc:
+        warnings.append(f"BOM extraction error: {type(exc).__name__}: {exc}")
+
+    if not new_bom and api_key is not None:
+        try:
+            ai_bom = extract_bom_with_ai(pdf_path, api_key=api_key)
+        except Exception:
+            ai_bom = None
+        if ai_bom:
+            new_bom = ai_bom
+            warnings.append(
+                f"BOM extracted via AI fallback ({len(ai_bom)} rows). "
+                "Review before saving."
+            )
+
+    return ReextractBOMOut(
+        bom=[BOMItemIO(**b.to_dict()) for b in new_bom],
+        previous_count=len(project.bom),
+        warnings=warnings,
+    )
+
+
+class ReextractHolesOut(BaseModel):
+    """Preview of a hole re-extraction via the Tayda public API."""
+
+    holes: list[HoleIO]
+    previous_count: int
+    source: str  # human-readable: "tayda-api" / "none"
+    warnings: list[str]
+
+
+@projects_router.post("/{slug}/reextract-holes", response_model=ReextractHolesOut)
+def reextract_holes_from_tayda(
+    slug: str,
+    store: ProjectStore = Depends(get_project_store),
+) -> ReextractHolesOut:
+    """Re-fetch the drill template via Tayda's public box-design API.
+
+    Uses the project's stored ``drill_tool_url`` (captured at import) to
+    pull canonical hole coordinates straight from
+    ``api.taydakits.com``. Doesn't save — the frontend confirms via the
+    existing PUT /holes flow after the user reviews the preview.
+
+    Useful when:
+      - A project was created before the auto-import existed.
+      - The user clicked "Order drilled enclosure" on Tayda's site,
+        edited the template there, and wants the changes pulled back.
+    """
+    if not store.exists(slug):
+        raise HTTPException(404, f"Unknown project {slug!r}")
+    project = store.load(slug)
+    if not project.drill_tool_url:
+        raise HTTPException(
+            400,
+            "This project has no Tayda drill-tool URL on file. Re-extract "
+            "needs a public_key link from the original build page.",
+        )
+
+    warnings: list[str] = []
+    new_holes = []
+    try:
+        new_holes = fetch_tayda_drill_holes(project.drill_tool_url)
+    except TaydaDrillAPIError as exc:
+        warnings.append(f"Tayda API error: {exc}")
+
+    return ReextractHolesOut(
+        holes=[HoleIO(**h.to_dict()) for h in new_holes],
+        previous_count=len(project.holes),
+        source="tayda-api" if new_holes else "none",
+        warnings=warnings,
+    )
+
+
 def _fallback_name(filename: str) -> str:
     stem = Path(filename).stem
     # PedalPCB naming: "Sherwood-Overdrive.pdf" → "Sherwood Overdrive"
     return stem.replace("_", " ").replace("-", " ").strip().title() or "Untitled Build"
+
+
+def _is_taydakits_url(url: str) -> bool:
+    """Hostname check for the URL routes. Cheap and string-only — never
+    raises; the proper validation happens inside the Taydakits fetcher."""
+    from urllib.parse import urlparse
+
+    if not url:
+        return False
+    raw = url.strip()
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw
+    try:
+        host = (urlparse(raw).hostname or "").lower()
+    except Exception:
+        return False
+    return host in {"taydakits.com", "www.taydakits.com"}
+
+
+def _taydakits_pkg_to_response(
+    pkg: TaydakitsBuildPackage,
+    catalog: dict[str, Enclosure],
+) -> PDFExtractOut:
+    return PDFExtractOut(
+        suggested_name=pkg.title,
+        suggested_enclosure=pkg.enclosure,
+        enclosure_in_catalog=(pkg.enclosure in catalog) if pkg.enclosure else False,
+        bom=[BOMItemIO(**b.to_dict()) for b in pkg.bom],
+        holes=[HoleIO(**h.to_dict()) for h in pkg.holes],
+        wiring_page_index=None,
+        drill_template_page_index=None,
+        warnings=pkg.warnings,
+        next_steps=pkg.next_steps,
+    )
+
+
+def _cache_remote_image(url: str, dest: Path) -> bool:
+    """Download a public image URL to dest. Returns True on success.
+
+    Only used for Taydakits ckeditor_assets — no auth, no large files.
+    Silent on failure so a transient image-host hiccup doesn't break
+    project creation.
+    """
+    import httpx
+
+    try:
+        with httpx.Client(
+            timeout=15.0,
+            headers={"User-Agent": TAYDAKITS_UA},
+            follow_redirects=True,
+        ) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            data = resp.content
+            if not data or len(data) > 10 * 1024 * 1024:
+                return False
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+            return True
+    except Exception:
+        return False
 
 
 @projects_router.get("/{slug}/source.pdf")
@@ -372,8 +561,18 @@ async def pdf_extract_from_url(
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
     api_key: str | None = Depends(get_request_api_key),
 ) -> PDFExtractOut:
-    """Preview-only: fetch a PedalPCB product-page URL, grab the build PDF,
-    and run the same extractor as /pdf/extract. Nothing is written to disk."""
+    """Preview-only: fetch a build URL and run the appropriate extractor.
+
+    Dispatches by hostname: pedalpcb.com → PDF flow, taydakits.com → HTML flow.
+    Returns the same shape regardless of source so the frontend dialog can
+    handle both transparently."""
+    if _is_taydakits_url(payload.url):
+        try:
+            pkg = extract_build_package_from_url(payload.url)
+        except TaydakitsFetchError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return _taydakits_pkg_to_response(pkg, catalog)
+
     try:
         fetched = fetch_from_product_url(payload.url)
     except PedalPCBFetchError as exc:
@@ -388,6 +587,18 @@ async def pdf_extract_from_url(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
             if scaled_holes:
                 pkg.holes = scaled_holes
+        # If the product page advertises a Tayda drill-tool URL, prefer that
+        # over the PDF-vector / AI extractors — it's the canonical source.
+        # Skip when we already have holes from the PDF (vector parser is
+        # still our most accurate path when it works).
+        pkg.drill_tool_url = fetched.drill_tool_url
+        if not pkg.holes and fetched.drill_tool_url:
+            try:
+                api_holes = fetch_tayda_drill_holes(fetched.drill_tool_url)
+                if api_holes:
+                    pkg.holes = api_holes
+            except TaydaDrillAPIError:
+                pass
         _ai_drill_fallback(pkg, tmp_path, catalog, api_key=api_key)
         _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
     finally:
@@ -405,6 +616,7 @@ async def pdf_extract_from_url(
         wiring_page_index=pkg.wiring_page_index,
         drill_template_page_index=pkg.drill_template_page_index,
         warnings=pkg.warnings,
+        next_steps=pkg.next_steps,
     )
 
 
@@ -415,8 +627,12 @@ async def create_project_from_url(
     catalog: dict[str, Enclosure] = Depends(get_enclosure_catalog),
     api_key: str | None = Depends(get_request_api_key),
 ) -> ProjectOut:
-    """Atomic: fetch a PedalPCB product URL, extract, create project with
-    the PDF attached and images cached."""
+    """Atomic: fetch a build URL, extract, create project with cached assets.
+
+    Dispatches by hostname: pedalpcb.com → PDF flow, taydakits.com → HTML flow."""
+    if _is_taydakits_url(payload.url):
+        return _create_project_from_taydakits(payload, store, catalog)
+
     try:
         fetched = fetch_from_product_url(payload.url)
     except PedalPCBFetchError as exc:
@@ -438,6 +654,16 @@ async def create_project_from_url(
             scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
             if scaled_holes:
                 pkg.holes = scaled_holes
+        # Tayda drill-API fallback before AI — same rationale as the preview
+        # route: the API is canonical and free, AI is paid + best-effort.
+        pkg.drill_tool_url = fetched.drill_tool_url
+        if not pkg.holes and fetched.drill_tool_url:
+            try:
+                api_holes = fetch_tayda_drill_holes(fetched.drill_tool_url)
+                if api_holes:
+                    pkg.holes = api_holes
+            except TaydaDrillAPIError:
+                pass
         _ai_drill_fallback(
             pkg, tmp_path, catalog,
             enclosure_override=enclosure_key, api_key=api_key,
@@ -468,6 +694,7 @@ async def create_project_from_url(
         project.source_pdf = "source.pdf"
         project.bom = list(pkg.bom)
         project.holes = list(pkg.holes)
+        project.drill_tool_url = fetched.drill_tool_url
 
         wiring_page = (
             pkg.wiring_page_index if pkg.wiring_page_index is not None else 3
@@ -488,3 +715,59 @@ async def create_project_from_url(
         return _project_to_out(project)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def _create_project_from_taydakits(
+    payload: URLCreateIn,
+    store: ProjectStore,
+    catalog: dict[str, Enclosure],
+) -> ProjectOut:
+    """Atomic create from a taydakits.com instructions URL.
+
+    Mirrors the PedalPCB URL flow but operates on HTML pages and remote
+    images rather than a PDF. Holes auto-populate from Tayda's public
+    box-design API when the instructions page links to a drill template;
+    otherwise users can fetch them later from the Drill tab.
+    """
+    try:
+        pkg = extract_build_package_from_url(payload.url)
+    except TaydakitsFetchError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    enclosure_key = (
+        payload.enclosure
+        or (pkg.enclosure if pkg.enclosure in catalog else "")
+        or ""
+    ).strip()
+
+    effective_name = (payload.name or pkg.title or "Untitled Build").strip()
+    if not effective_name:
+        raise HTTPException(400, "Could not determine a project name.")
+
+    try:
+        project = store.create(effective_name, enclosure=enclosure_key)
+    except FileExistsError:
+        raise HTTPException(
+            409,
+            f"A project named {effective_name!r} already exists. Pick a different name.",
+        )
+
+    pdir = store.project_dir(project.slug)
+    pdir.mkdir(parents=True, exist_ok=True)
+
+    project.bom = list(pkg.bom)
+    project.holes = list(pkg.holes)
+    project.source_pdf = None  # no PDF for Taydakits builds
+    project.drill_tool_url = pkg.drill_tool_url
+
+    if pkg.pcb_layout_image_url:
+        _cache_remote_image(pkg.pcb_layout_image_url, pdir / "pcb_layout.png")
+    if pkg.wiring_image_url:
+        _cache_remote_image(pkg.wiring_image_url, pdir / "wiring.png")
+    if pkg.schematic_image_url:
+        _cache_remote_image(pkg.schematic_image_url, pdir / "schematic.png")
+
+    store.save(project)
+    from pedal_bench.api.routes.projects import _project_to_out
+
+    return _project_to_out(project)

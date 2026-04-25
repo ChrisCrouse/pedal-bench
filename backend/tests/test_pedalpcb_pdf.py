@@ -15,7 +15,10 @@ import pytest
 
 from pedal_bench.io.pedalpcb_pdf import (
     _find_header,
+    _looks_like_prose,
+    _parse_parts_list_page,
     _rows_to_items,
+    _section_for,
     extract_bom,
 )
 
@@ -123,6 +126,73 @@ def test_rows_to_items_none_cells() -> None:
     items = _rows_to_items(rows, col_map)
     assert len(items) == 1
     assert items[0].notes == ""
+
+
+# ---- legacy "Parts List" multi-column parser -----------------------------
+
+def _word(text: str, x0: float, top: float, x1: float | None = None) -> dict:
+    return {"text": text, "x0": x0, "x1": x1 if x1 is not None else x0 + 20, "top": top}
+
+
+def test_section_for_matches_decorated_header() -> None:
+    assert _section_for("RESISTORS") == ("RESISTORS", "Resistor, 1/4W")
+    assert _section_for("RESISTORS (1/4W)") == ("RESISTORS", "Resistor, 1/4W")
+    assert _section_for("Capacitors") == ("CAPACITORS", "Capacitor")
+    assert _section_for("R1 33K") is None
+
+
+def test_looks_like_prose_rejects_build_notes() -> None:
+    assert _looks_like_prose("D1 and D2 orientation")
+    assert _looks_like_prose("are only needed when using")
+    assert not _looks_like_prose("100K")
+    assert not _looks_like_prose("3mm Red LED")
+    assert not _looks_like_prose("MPQ3904")
+
+
+def test_parse_parts_list_page_handles_simple_two_column_layout() -> None:
+    # Mimic two visual columns: resistors on the left, capacitors on the right.
+    # x0 ≈ 50 for left column, ≈ 300 for right column (well over 25pt gap).
+    words = [
+        _word("RESISTORS", 50, 100), _word("CAPACITORS", 300, 100),
+        _word("R1", 50, 120), _word("33K", 80, 120),
+        _word("C1", 300, 120), _word("100n", 330, 120),
+        _word("R2", 50, 140), _word("100K", 80, 140),
+        _word("C2", 300, 140), _word("470p", 330, 140),
+    ]
+    items = _parse_parts_list_page(words)
+    by_loc = {i.location: i for i in items}
+    assert by_loc["R1"].value == "33K"
+    assert by_loc["R1"].type == "Resistor, 1/4W"
+    assert by_loc["C2"].value == "470p"
+    assert by_loc["C2"].type == "Capacitor"
+
+
+def test_parse_parts_list_pairs_orphan_pot_values() -> None:
+    # POTENTIOMETERS section with name in one column and taper/value in the
+    # next column at the same y-position.
+    words = [
+        _word("POTENTIOMETERS", 50, 100),
+        _word("LOUDNESS", 50, 120), _word("B100K", 200, 120),
+        _word("FILTER", 50, 140), _word("B100K", 200, 140),
+    ]
+    items = _parse_parts_list_page(words)
+    by_loc = {i.location: i for i in items}
+    assert by_loc["LOUDNESS"].value == "B100K"
+    assert by_loc["LOUDNESS"].type == "Potentiometer"
+    assert by_loc["FILTER"].value == "B100K"
+
+
+def test_parse_parts_list_skips_joiner_words() -> None:
+    # "OR" between two SW1 alternatives must not be parsed as a refdes.
+    words = [
+        _word("SWITCHES", 50, 100),
+        _word("SW1", 50, 120), _word("2P4T Mini", 80, 120),
+        _word("OR", 50, 140),
+        _word("SW1", 50, 160), _word("SPDT", 80, 160),
+    ]
+    items = _parse_parts_list_page(words)
+    locations = [i.location for i in items]
+    assert "OR" not in locations
 
 
 # ---- integration test (Sherwood PDF fixture) -----------------------------

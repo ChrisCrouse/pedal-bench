@@ -101,6 +101,8 @@ export interface Project {
   refdes_map: Record<string, [number, number]>;
   created_at: string;
   updated_at: string;
+  /** Tayda Manufacturing Center drill-template deep link captured at import. */
+  drill_tool_url?: string | null;
 }
 
 export interface ProjectSummary {
@@ -187,6 +189,9 @@ export interface PDFExtractOut {
   wiring_page_index: number | null;
   drill_template_page_index: number | null;
   warnings: string[];
+  /** Workflow hand-offs to surface after a successful import (e.g., drill-tool
+   *  walkthrough for Taydakits). Distinct from warnings, which mean a problem. */
+  next_steps?: string[];
 }
 
 async function uploadPdf<T>(path: string, file: File, fields: Record<string, string> = {}): Promise<T> {

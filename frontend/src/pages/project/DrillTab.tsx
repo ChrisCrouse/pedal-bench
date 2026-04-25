@@ -9,6 +9,7 @@ import {
   type STLExport,
 } from "@/api/client";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { EnclosureCanvas } from "@/components/drill/EnclosureCanvas";
 import { HoleInspector } from "@/components/drill/HoleInspector";
 import { PanelArtworkDialog } from "@/components/drill/PanelArtworkDialog";
@@ -167,6 +168,44 @@ export function DrillTab() {
       alert(`Extract failed: ${err instanceof Error ? err.message : String(err)}`);
     },
   });
+
+  const [taydaFetchPreview, setTaydaFetchPreview] = useState<{
+    holes: Hole[];
+    previous_count: number;
+    source: string;
+    warnings: string[];
+  } | null>(null);
+  const [taydaFetchError, setTaydaFetchError] = useState<string | null>(null);
+
+  const taydaFetch = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/projects/${slug}/reextract-holes`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return (await res.json()) as {
+        holes: Hole[];
+        previous_count: number;
+        source: string;
+        warnings: string[];
+      };
+    },
+    onSuccess: (data) => {
+      setTaydaFetchError(null);
+      setTaydaFetchPreview(data);
+    },
+    onError: (err) => {
+      setTaydaFetchError(err instanceof Error ? err.message : String(err));
+    },
+  });
+
+  const applyTaydaFetch = () => {
+    if (taydaFetchPreview) {
+      setHoles(taydaFetchPreview.holes);
+      setSelectedIndices([]);
+    }
+    setTaydaFetchPreview(null);
+  };
 
   const handleAdd = useCallback(
     (h: Hole) => {
@@ -344,9 +383,31 @@ export function DrillTab() {
           >
             {reextract.isPending ? "Extracting…" : "Extract from PDF"}
           </Button>
+          {project.drill_tool_url && (
+            <Button
+              variant="ghost"
+              onClick={() => taydaFetch.mutate()}
+              disabled={taydaFetch.isPending}
+              title="Fetch holes directly from Tayda's drill-template API using this build's public_key"
+            >
+              {taydaFetch.isPending ? "Fetching…" : "Fetch from Tayda"}
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => setPasteOpen(true)}>
             Paste Tayda…
           </Button>
+          {project.drill_tool_url && (
+            <a
+              href={project.drill_tool_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Opens Tayda's online drill tool with this build's coordinates pre-loaded"
+            >
+              <Button variant="ghost" type="button">
+                Order drilled enclosure…
+              </Button>
+            </a>
+          )}
           <Button
             variant="ghost"
             disabled={holes.length === 0}
@@ -384,6 +445,16 @@ export function DrillTab() {
           </Button>
         </div>
       </div>
+      {project.drill_tool_url && (
+        <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-1.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+          <span className="font-semibold text-zinc-600 dark:text-zinc-300">
+            Order drilled enclosure
+          </span>{" "}
+          opens Tayda's online drill tool in a new tab with this build's
+          coordinates pre-loaded. Tayda offers a paid custom-drilling service —
+          handy if you don't have a 3D printer or drill press.
+        </div>
+      )}
 
       {/* Workspace */}
       <div className="flex min-h-0 flex-1">
@@ -471,6 +542,77 @@ export function DrillTab() {
           onClose={() => setExportResults(null)}
         />
       )}
+      {taydaFetchError && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-md rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 shadow-lg dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          <button
+            type="button"
+            className="float-right ml-2 text-xs font-bold text-red-700 hover:text-red-900 dark:text-red-300"
+            onClick={() => setTaydaFetchError(null)}
+          >
+            ×
+          </button>
+          Tayda fetch failed: {taydaFetchError}
+        </div>
+      )}
+      <Dialog
+        open={taydaFetchPreview !== null}
+        onClose={() => setTaydaFetchPreview(null)}
+        title="Fetch holes from Tayda"
+        maxWidth="md"
+      >
+        {taydaFetchPreview && (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              Pulled the drill template directly from Tayda's box-design API
+              using this build's <code className="font-mono">public_key</code>.
+            </p>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="text-xs uppercase tracking-wider text-zinc-500">Current</div>
+                <div className="text-2xl font-semibold">{taydaFetchPreview.previous_count}</div>
+                <div className="text-xs text-zinc-500">holes in editor</div>
+              </div>
+              <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/40">
+                <div className="text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  From Tayda
+                </div>
+                <div className="text-2xl font-semibold text-emerald-800 dark:text-emerald-300">
+                  {taydaFetchPreview.holes.length}
+                </div>
+                <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80">
+                  holes fetched
+                </div>
+              </div>
+            </div>
+            {taydaFetchPreview.warnings.length > 0 && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                <div className="mb-1 font-semibold">Warnings</div>
+                <ul className="list-inside list-disc space-y-0.5">
+                  {taydaFetchPreview.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p className="text-xs text-zinc-500">
+              Replacing only updates the editor. Click <strong>Save</strong>{" "}
+              afterwards to persist.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setTaydaFetchPreview(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={applyTaydaFetch}
+                disabled={taydaFetchPreview.holes.length === 0}
+              >
+                Replace editor with {taydaFetchPreview.holes.length} holes
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

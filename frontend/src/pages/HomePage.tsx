@@ -45,8 +45,8 @@ export function HomePage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Your builds</h1>
           <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            Start a new pedal build. Drop a PedalPCB PDF and we'll extract the BOM,
-            enclosure, and title automatically — or build one up manually.
+            Start a new pedal build. Drop a PedalPCB PDF or paste a build URL —
+            we'll extract the BOM, enclosure, and title automatically.
           </p>
         </div>
         <Button variant="secondary" size="lg" onClick={() => setNewOpen(true)}>
@@ -69,7 +69,7 @@ export function HomePage() {
         >
           <Input
             type="url"
-            placeholder="Or paste a PedalPCB product URL (pedalpcb.com/product/...)"
+            placeholder="Or paste a PedalPCB or Taydakits build URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             disabled={busy}
@@ -90,9 +90,35 @@ export function HomePage() {
         )}
         {extractUrl.isPending && (
           <div className="mt-2 text-center text-sm text-zinc-500">
-            Fetching PedalPCB product page and downloading the PDF…
+            Fetching the build page…
           </div>
         )}
+        <details className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+          <summary className="cursor-pointer font-semibold text-zinc-700 dark:text-zinc-300">
+            Which build URLs work?
+          </summary>
+          <div className="mt-2 space-y-2">
+            <div>
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">PedalPCB</span>{" "}
+              — paste a product page URL (
+              <code className="font-mono">pedalpcb.com/product/...</code>). BOM,
+              enclosure, drill template, and wiring image are all imported
+              automatically.
+            </div>
+            <div>
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">Taydakits</span>{" "}
+              — paste an instructions URL (
+              <code className="font-mono">taydakits.com/instructions/...</code>).
+              BOM, enclosure, schematic, and wiring image are imported.{" "}
+              <span className="italic">Drill coordinates are not</span> —
+              Taydakits embeds them in an image. After import, open the project's
+              Drill tab, click <span className="font-semibold">Paste Tayda…</span>,
+              and either paste the coordinates from the Taydakits drilling page or
+              export them from{" "}
+              <code className="font-mono">drill.taydakits.com</code>.
+            </div>
+          </div>
+        </details>
         {extract.isError && (
           <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
             PDF extraction failed: {(extract.error as Error).message}

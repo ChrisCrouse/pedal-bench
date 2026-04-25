@@ -40,6 +40,7 @@ _POLARITY_MARKERS = (
     "opamp",
     "led",
     "tantalum",
+    "integrated circuit",
 )
 
 
@@ -250,12 +251,18 @@ class Project:
     # Each value is [x_pct, y_pct] with 0 ≤ pct ≤ 1 in SVG orientation.
     # Set manually by the user via click-to-tag on the BOM tab.
     refdes_map: dict[str, list[float]] = field(default_factory=dict)
+    # Pre-loaded Tayda Manufacturing Center drill-template URL captured at
+    # import time. Both PedalPCB product pages and Taydakits instruction
+    # pages link to drill.taydakits.com/box-designs/new?public_key=... — we
+    # surface this on the Drill tab so users can order a custom-drilled
+    # enclosure with one click instead of re-entering coordinates by hand.
+    drill_tool_url: Optional[str] = None
 
     def touch(self) -> None:
         self.updated_at = now_iso()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "slug": self.slug,
             "name": self.name,
             "status": self.status,
@@ -269,6 +276,9 @@ class Project:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+        if self.drill_tool_url is not None:
+            d["drill_tool_url"] = self.drill_tool_url
+        return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Project":
@@ -295,6 +305,7 @@ class Project:
             refdes_map=refdes_map,
             created_at=d.get("created_at", now_iso()),
             updated_at=d.get("updated_at", now_iso()),
+            drill_tool_url=d.get("drill_tool_url"),
         )
 
 

@@ -32,7 +32,17 @@ class ExtractedBuildPackage:
     holes: list[Hole] = field(default_factory=list)
     wiring_page_index: int | None = None
     drill_template_page_index: int | None = None
+    # Things that *went wrong* during extraction — rendered as amber
+    # "extraction warnings" in the review dialog.
     warnings: list[str] = field(default_factory=list)
+    # Things the user should do *next* even though extraction succeeded —
+    # workflow hand-offs like "drill coords aren't auto-imported, here's
+    # how to bring them in." Rendered as informational blue, not amber.
+    next_steps: list[str] = field(default_factory=list)
+    # Tayda Manufacturing Center drill-template deep link, when the source
+    # product/instructions page advertises one. Persists onto the project
+    # so the Drill tab can offer a one-click "Order drilled enclosure".
+    drill_tool_url: str | None = None
 
 
 # Known enclosure keys in the shipped catalog, plus common aliases the
@@ -162,31 +172,59 @@ def _guess_title(pdf, page_texts: list[str]) -> str | None:
 
 
 def _group_chars_by_size(chars: list[dict]) -> list[tuple[float, str]]:
-    """Reduce pdfplumber chars into (size, text) text runs."""
+    """Reduce pdfplumber chars into (size, text) text runs.
+
+    Some PedalPCB PDFs render heading words as separate text-showing
+    operations with positional gaps but no actual space char in the stream.
+    We detect those gaps (x-distance from previous char's x1 > 30% of the
+    char's own width) and insert a space so 'GravitationReverb' becomes
+    'Gravitation Reverb'.
+    """
     runs: list[tuple[float, str]] = []
     current_size: float | None = None
     buf: list[str] = []
+    last_x1: float | None = None
+    last_width: float | None = None
 
     def flush() -> None:
         if current_size is not None and buf:
-            runs.append((current_size, "".join(buf)))
+            text = "".join(buf)
+            # Collapse any double spaces that the gap-detection introduced.
+            text = " ".join(text.split())
+            runs.append((current_size, text))
 
     for ch in chars:
         size = float(ch.get("size") or 0.0)
         text = ch.get("text", "")
         if not text:
             continue
-        if current_size is None or abs(size - current_size) > 0.5:
+        x0 = float(ch.get("x0", 0.0))
+        x1 = float(ch.get("x1", x0))
+        width = x1 - x0
+
+        same_size = current_size is not None and abs(size - current_size) <= 0.5
+        if not same_size:
             flush()
             buf = [text]
             current_size = size
         else:
+            # Same-size run: insert a space if there's a noticeable gap
+            # between this char and the previous one and neither side is
+            # already a space.
+            prev = buf[-1] if buf else ""
+            if (
+                last_x1 is not None
+                and prev != " "
+                and text != " "
+                and width > 0
+                and (x0 - last_x1) > max(width * 0.3, 1.5)
+            ):
+                buf.append(" ")
             buf.append(text)
+        last_x1 = x1
+        last_width = width
     flush()
 
-    # Merge runs where the text looks like a single word or phrase split on
-    # size boundaries (PedalPCB headers often split the title and the tiny
-    # "Revised mm/dd/yy" tag right below it; we want only the big part).
     return runs
 
 

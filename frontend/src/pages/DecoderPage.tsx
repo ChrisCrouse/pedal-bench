@@ -232,14 +232,26 @@ function CapacitorCard() {
 }
 
 function alternates(farads: number): string[] {
-  const alts: string[] = [];
-  if (farads >= 1e-6) alts.push(`${fmt(farads * 1e6)} µF`);
-  if (farads >= 1e-9 && farads < 1e-6) {
-    alts.push(`${fmt(farads * 1e6)} µF`);
-    alts.push(`${fmt(farads * 1e12)} pF`);
+  // Generate every plausible unit form, drop the one matching the canonical
+  // display, and keep only entries that read naturally (≤4 significant
+  // digits before the decimal — drops "100000 pF" but keeps "100 nF").
+  const candidates: { value: number; unit: string }[] = [
+    { value: farads * 1e6, unit: "µF" },
+    { value: farads * 1e9, unit: "nF" },
+    { value: farads * 1e12, unit: "pF" },
+  ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const { value, unit } of candidates) {
+    if (value <= 0) continue;
+    if (value >= 10000) continue; // "100000 pF" — too many digits to read
+    if (value < 0.001) continue;
+    const text = `${fmt(value)} ${unit}`;
+    if (seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
   }
-  if (farads < 1e-9) alts.push(`${fmt(farads * 1e9)} nF`);
-  return alts;
+  return out;
 }
 
 function fmt(x: number): string {

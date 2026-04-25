@@ -72,13 +72,21 @@ export function PdfReviewDialog({ source, preview, onClose }: Props) {
   for (const b of preview.bom) {
     const t = b.type.toLowerCase();
     let k = "other";
+    // Order matters: more specific matches first. "ceramic capacitor"
+    // contains "ic" as a substring, so cap detection must precede the
+    // op-amp / IC check.
     if (t.includes("resistor")) k = "resistors";
-    else if (t.includes("diode")) k = "diodes";
+    else if (t.includes("diode") || t.includes("led")) k = "diodes";
     else if (t.includes("electrolytic") || t.includes("tantalum")) k = "electro caps";
-    else if (t.includes("op-amp") || t.includes("opamp") || t.includes("ic")) k = "ICs";
-    else if (t.includes("transistor")) k = "transistors";
     else if (t.includes("cap") || t.includes("ceramic") || t.includes("film")) k = "caps";
+    else if (t.includes("op-amp") || t.includes("opamp") ||
+             t.includes("integrated circuit") || /\bic\b/.test(t) ||
+             t.includes("voltage regulator") || t.includes("reverb module")) k = "ICs";
+    else if (t.includes("transistor")) k = "transistors";
+    else if (t.includes("trim")) k = "trim pots";
     else if (t.includes("pot")) k = "pots";
+    else if (t.includes("switch") || t.includes("toggle") || t.includes("relay")) k = "switches";
+    else if (t.includes("inductor")) k = "inductors";
     bomByGroup[k] = (bomByGroup[k] ?? 0) + 1;
   }
 
@@ -192,9 +200,22 @@ export function PdfReviewDialog({ source, preview, onClose }: Props) {
           </div>
         </section>
 
+        {preview.next_steps && preview.next_steps.length > 0 && (
+          <section className="rounded-md border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+            <div className="mb-1 font-semibold text-sky-800 dark:text-sky-300">
+              What to do next
+            </div>
+            <ul className="list-inside list-disc space-y-1">
+              {preview.next_steps.map((s, i) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {preview.warnings.length > 0 && (
-          <section className="rounded-md border border-zinc-200 bg-white p-3 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-            <div className="mb-1 font-semibold text-zinc-700 dark:text-zinc-300">
+          <section className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+            <div className="mb-1 font-semibold text-amber-800 dark:text-amber-300">
               Extraction warnings
             </div>
             <ul className="list-inside list-disc space-y-0.5">

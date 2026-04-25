@@ -89,6 +89,7 @@ class ProjectOut(BaseModel):
     refdes_map: dict[str, list[float]] = {}
     created_at: str
     updated_at: str
+    drill_tool_url: str | None = None
 
 
 class ProjectSummary(BaseModel):

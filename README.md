@@ -1,9 +1,9 @@
 # pedal-bench
 
-A local workbench for DIY guitar pedal builds. Drop a PedalPCB PDF or
-paste a product URL — and walk through ordering, drilling, soldering,
-and debugging in one place. Runs on your machine, stores your projects
-as plain JSON in a folder you can back up.
+A local workbench for DIY guitar pedal builds. Drop a PedalPCB PDF, or
+paste a build URL from PedalPCB or Taydakits — and walk through
+ordering, drilling, soldering, and debugging in one place. Runs on your
+machine, stores your projects as plain JSON in a folder you can back up.
 
 **The whole tool works fully offline.** No account, no signup, no
 phone-home. AI is **strictly optional** — four small features become
@@ -26,10 +26,22 @@ is deterministic by design.
 
 ### Ingestion
 
-Drop a modern PedalPCB build PDF or paste a `pedalpcb.com/product/...`
-URL. The tool fetches the build doc and pulls out title, enclosure,
-BOM rows, drill template, and wiring diagram automatically. No AI
-required for current PedalPCB layouts.
+Two supported sources, both deterministic, both no-AI:
+
+- **PedalPCB** — drop a build PDF or paste a `pedalpcb.com/product/...`
+  URL. Title, enclosure, BOM, drill template, and wiring diagram all
+  pull automatically from the published PDF.
+- **Taydakits** — paste a `taydakits.com/instructions/...` URL. BOM,
+  enclosure, schematic, and wiring images come from the HTML pages.
+  Drill coordinates pull from Tayda's public box-design API using the
+  `public_key` link the build page advertises — same data the Tayda
+  drill tool uses, no scraping.
+
+When the source page advertises a Tayda Manufacturing Center drill
+template (which most builds do, on both sites), the project is wired
+to a one-click "Order drilled enclosure" link that opens Tayda's tool
+with this build's holes pre-loaded — handy if you don't have a 3D
+printer or drill press.
 
 ### Project overview
 
