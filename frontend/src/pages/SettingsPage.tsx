@@ -6,6 +6,7 @@ import { getMouserKey, setMouserKey, subscribeToMouserKey } from "@/lib/mouserKe
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { NoKeyCapabilities } from "@/components/settings/NoKeyCapabilities";
 
 export function SettingsPage() {
   const qc = useQueryClient();
@@ -51,17 +52,21 @@ export function SettingsPage() {
     <div className="mx-auto max-w-2xl space-y-6 px-6 py-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
 
+      <NoKeyCapabilities />
+
       <Card>
         <CardHeader>
-          <div className="font-semibold">Anthropic API key</div>
+          <div className="font-semibold">Optional: enable AI features</div>
         </CardHeader>
         <CardBody className="space-y-4 text-sm">
           <p className="text-zinc-600 dark:text-zinc-400">
-            AI features (component photo verification, fault diagnosis, BOM/drill
-            extraction fallbacks for older PDFs) call Anthropic's API on your
-            behalf. Bring your own key — pedal-bench never stores it on its
-            servers. The key sits in this browser's localStorage and rides on
-            every API call as a request header.
+            Four optional features call Anthropic's API on your behalf:
+            component photo verification, fault diagnosis in the Debug tab,
+            and BOM / drill-template fallback extraction for older PedalPCB
+            PDFs that the deterministic parser can't read. Everything else
+            works without a key. Bring your own key — pedal-bench never
+            stores it server-side; it sits in this browser's localStorage
+            and rides on each API call as a request header.
           </p>
 
           <div className="rounded-md bg-zinc-50 p-3 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">

@@ -6,6 +6,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { DiagnoseCard } from "@/components/debug/DiagnoseCard";
+import { useAIAvailable } from "@/components/ui/AIRequiredNotice";
 
 interface Ctx {
   slug: string;
@@ -39,6 +40,7 @@ export function DebugTab() {
 
   const [readings, setReadings] = useState<Record<string, PinReading[]>>({});
   const pinReadings = effectiveKey ? readings[effectiveKey] ?? [] : [];
+  const aiAvailable = useAIAvailable();
 
   const updatePin = (pin: number, measured: string) => {
     if (!effectiveKey) return;
@@ -110,12 +112,14 @@ export function DebugTab() {
         </CardBody>
       </Card>
 
-      <DiagnoseCard
-        slug={slug}
-        project={project}
-        selectedIc={selectedIc}
-        readings={pinReadings}
-      />
+      {aiAvailable && (
+        <DiagnoseCard
+          slug={slug}
+          project={project}
+          selectedIc={selectedIc}
+          readings={pinReadings}
+        />
+      )}
 
       <Card>
         <CardHeader>

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useOutletContext } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { api, type BOMItem, type Project } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -13,6 +13,7 @@ import {
 } from "@/components/bom/componentColors";
 import { VerifyComponentDialog } from "@/components/bom/VerifyComponentDialog";
 import { TaydaShoppingDialog } from "@/components/bom/TaydaShoppingDialog";
+import { useAIAvailable } from "@/components/ui/AIRequiredNotice";
 
 interface Ctx {
   slug: string;
@@ -49,6 +50,7 @@ export function BOMTab() {
   );
   const [verifyRow, setVerifyRow] = useState<BOMItem | null>(null);
   const [taydaOpen, setTaydaOpen] = useState(false);
+  const aiAvailable = useAIAvailable();
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const dirty = useMemo(
@@ -377,14 +379,16 @@ export function BOMTab() {
                     </Td>
                     <Td className={`sticky right-0 z-10 ${stickyBg}`}>
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => setVerifyRow(item)}
-                          disabled={!item.location.trim() || (!item.value.trim() && !item.type.trim())}
-                          className="text-[11px] text-emerald-700 underline hover:text-emerald-900 disabled:text-zinc-400 disabled:no-underline dark:text-emerald-400 dark:hover:text-emerald-200"
-                          title="Verify this component with a photo"
-                        >
-                          verify
-                        </button>
+                        {aiAvailable && (
+                          <button
+                            onClick={() => setVerifyRow(item)}
+                            disabled={!item.location.trim() || (!item.value.trim() && !item.type.trim())}
+                            className="text-[11px] text-emerald-700 underline hover:text-emerald-900 disabled:text-zinc-400 disabled:no-underline dark:text-emerald-400 dark:hover:text-emerald-200"
+                            title="Verify this component with a photo (AI)"
+                          >
+                            verify
+                          </button>
+                        )}
                         <button
                           onClick={() => removeRow(actualIdx)}
                           className="text-xs text-red-600 hover:text-red-500"
@@ -408,6 +412,17 @@ export function BOMTab() {
               )}
             </tbody>
           </table>
+          {aiAvailable === false && bom.length > 0 && (
+            <div className="border-t border-zinc-100 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800">
+              Track build progress on the{" "}
+              <Link
+                to={`/projects/${slug}/bench`}
+                className="text-emerald-700 underline hover:text-emerald-900 dark:text-emerald-400"
+              >
+                Bench tab →
+              </Link>
+            </div>
+          )}
         </div>
 
         <aside className="w-[45%] min-w-[400px] shrink-0 border-l border-zinc-200 dark:border-zinc-800">

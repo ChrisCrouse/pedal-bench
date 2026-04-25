@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query";
 import { api, type DebugIC, type Project } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { AIRequiredNotice, useAIAvailable } from "@/components/ui/AIRequiredNotice";
 
 type PinReading = { pin: number; measured: string };
 
@@ -43,7 +42,6 @@ export function DiagnoseCard({ slug, project, selectedIc, readings }: Props) {
   const [symptom, setSymptom] = useState("");
   const [includeImage, setIncludeImage] = useState(true);
   const hasWiring = project.source_pdf !== null;
-  const aiAvailable = useAIAvailable();
 
   const run = useMutation({
     mutationFn: () =>
@@ -78,7 +76,6 @@ export function DiagnoseCard({ slug, project, selectedIc, readings }: Props) {
         </div>
       </CardHeader>
       <CardBody className="space-y-3">
-        <AIRequiredNotice feature="AI diagnosis" />
         <label className="block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Symptom
@@ -112,7 +109,7 @@ export function DiagnoseCard({ slug, project, selectedIc, readings }: Props) {
         <div className="flex items-center justify-end">
           <Button
             variant="primary"
-            disabled={run.isPending || !symptom.trim() || aiAvailable === false}
+            disabled={run.isPending || !symptom.trim()}
             onClick={() => run.mutate()}
           >
             {run.isPending ? "Thinking…" : "Diagnose"}

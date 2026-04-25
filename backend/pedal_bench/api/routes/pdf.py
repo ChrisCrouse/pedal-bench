@@ -41,8 +41,20 @@ def _ai_bom_fallback(pkg, tmp_path, api_key=None):
     came up empty (older PedalPCB PDFs use a multi-column Parts List
     layout the heuristic doesn't handle). No-op if pkg.bom is non-empty
     or the AI path fails.
+
+    When deterministic parse came up empty AND no AI key is configured,
+    append a clear warning so the user knows their options (manual entry
+    or add a key) instead of getting a blank BOM with no explanation.
     """
     if pkg.bom:
+        return
+    if api_key is None:
+        pkg.warnings.append(
+            "BOM couldn't be auto-extracted from this PDF. Modern PedalPCB "
+            "build docs parse automatically; older 'Parts List' layouts "
+            "need AI extraction. Open the BOM tab to enter parts manually, "
+            "or add an Anthropic API key in Settings to enable AI extraction."
+        )
         return
     try:
         ai_bom = extract_bom_with_ai(tmp_path, api_key=api_key)
@@ -70,6 +82,14 @@ def _ai_drill_fallback(pkg, tmp_path, catalog, enclosure_override=None, api_key=
         return
     page_index = pkg.drill_template_page_index
     if page_index is None:
+        return
+    if api_key is None:
+        pkg.warnings.append(
+            "Drill holes couldn't be auto-extracted from this PDF (likely "
+            "an image-only or unusual drill template). Use the Drill tab "
+            "to place holes manually, or add an Anthropic API key in "
+            "Settings to enable AI extraction."
+        )
         return
     try:
         ai_holes = extract_drill_holes_with_ai(

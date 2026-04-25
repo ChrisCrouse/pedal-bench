@@ -10,7 +10,10 @@ import { subscribeToApiKey } from "@/lib/apiKey";
  * Three states (driven by GET /api/v1/ai/status):
  *   - server env key configured  → emerald "AI: ready" (no link, nothing to do)
  *   - browser BYOK key set       → emerald "AI: your key" linking to /settings
- *   - no key                     → amber "Set up AI →" linking to /settings
+ *   - no key                     → neutral zinc "AI: off" linking to /settings
+ *
+ * The no-key state is intentionally neutral — pedal-bench works without a
+ * key for almost everything. The pill is honest signposting, not a nag.
  *
  * Also subscribes to in-tab key changes so the pill flips immediately
  * after Save / Clear without a manual reload.
@@ -42,10 +45,10 @@ export function AIStatusPill() {
     return (
       <NavLink
         to="/settings"
-        className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-        title="AI features need an Anthropic API key. Click to set one up."
+        className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+        title="AI features are optional. Click to learn what's available with a key."
       >
-        Set up AI →
+        AI: off
       </NavLink>
     );
   }

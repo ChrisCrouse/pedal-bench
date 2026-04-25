@@ -1,30 +1,39 @@
 # pedal-bench
 
-Bench copilot for DIY guitar pedal builds. Drop a PedalPCB PDF (or paste a
-product URL), and the tool extracts the pedal name, enclosure, and full
-BOM, then walks you through ordering, drilling, soldering, finishing, and
-debugging — all in one place.
+A local workbench for DIY guitar pedal builds. Drop a PedalPCB PDF, a
+DIYLC `.diy` file, or paste a product URL — and walk through ordering,
+drilling, soldering, finishing, and debugging in one place.
+
+**Works fully offline.** AI is opt-in for four optional features; the
+other ~30 capabilities are deterministic and need no API key, no signup,
+and no internet beyond ordering parts. See *[What works without an API
+key](#what-works-without-an-api-key)* below.
 
 ![status — working](https://img.shields.io/badge/status-working-emerald)
 ![license — MIT](https://img.shields.io/badge/license-MIT-blue)
+![no-key first](https://img.shields.io/badge/no--key-first--class-blue)
 
-## Features
+## What works without an API key
+
+The core build flow needs nothing beyond Python, Node, and your browser.
+Almost everything is deterministic — vector PDF parsing, XML parsing,
+SQLite, SVG canvas math, local color-band decoders.
 
 | Area | What you can do |
 |---|---|
-| **One-drop / one-paste ingestion** | Drop a PedalPCB PDF, or paste a `pedalpcb.com/product/...` URL. Tool fetches the build doc, extracts title, enclosure, BOM, drill holes, and caches the wiring diagram. AI fallback handles older "Parts List" PDFs and image-only drill templates. |
+| **PedalPCB ingestion** | Drop a modern PedalPCB build PDF, or paste a `pedalpcb.com/product/...` URL. Tool fetches the build doc and extracts title, enclosure, BOM, drill holes, wiring diagram via vector parsing — no AI required for current PedalPCB layouts. |
+| **DIYLC `.diy` import** | Drop a DIYLC project file. Parser handles both legacy (`org.diylc.core.Project`) and current (`<project>`) XML formats, classifies components by tag, even handles RobRobinette-style files where every resistor is named "R1". |
 | **Drill designer** | SVG unfolded-enclosure canvas. Click to place holes, drag to reposition, scroll-wheel to resize, multi-select, undo/redo, mirror-group symmetry. Smart-layout presets. Paste Tayda Box-Tool coordinates directly. |
-| **Print template + 3D drill guides** | Print-ready 1:1 mm SVG/PNG with crosshairs at every hole center for center-punching (no printer-friendly enclosure required). Or one-click parametric STL drill guides via `build123d` for 3D printing. |
+| **Print template + 3D drill guides** | Print-ready 1:1 mm SVG/PNG with crosshairs at every hole center for center-punching. Or one-click parametric STL drill guides via `build123d` for 3D printing. |
 | **Panel artwork export** | Print-ready SVG (vector) or 600-DPI PNG with knob labels and pedal title at 1:1 scale — for water-slide decals or UV print workflows. |
-| **BOM editor + photo verification** | Dense, inline-editable table. AI-powered "verify" button on each row: snap a photo of the part, get a match / mismatch / unsure verdict before soldering. |
-| **Order from Tayda** | One-click dialog dedupes your BOM by part, tailors per-kind search queries (resistor, cap, pot, IC), and opens Tayda search-result tabs in batches of 5. Per-part "ordered" checkboxes save shopping progress per project across sessions. |
-| **Mouser API integration (BYOK)** | Bring your own free Mouser Search API key in Settings; backend exposes `/mouser/search/keyword` and `/mouser/search/parts` endpoints with response caching (6h TTL) so you stay under the 1000-req/day cap. |
-| **DIYLC `.diy` file import** | Drop a DIYLC project file on Home — same path as PDF drop. Parser handles both v3 (`org.diylc.core.Project` root) and v4 (`<project>` root) formats, classifies components by tag, and pulls reference designators + values into a ready-to-use BOM. |
-| **Cross-project inventory** | New Inventory page shows every unique part across all your projects with totals — "100K resistor: 18 across 5 projects" — and click any row to drill into which projects use it. SQLite index rebuilt on demand from the JSON store. |
+| **BOM editor** | Dense, inline-editable table with color-coded chips by component kind, click-to-tag onto the cached PCB layout image, polarity warnings on orientation-sensitive rows. |
+| **Bench mode** | Grouped build-along checklist in solder order. Polarity warnings on diodes/electrolytics/transistors. Filters for "polarity only" and "pending only" + live progress bar. |
+| **Debug helper** | Per-IC expected pin voltages for 7 seed chips with live "ok / out of range" highlighting as you measure. Audio-probe procedure. Common-failure triage by symptom. |
+| **Cross-project inventory** | Inventory page shows every unique part across all your projects with totals — "100K resistor: 18 across 5 projects" — and click any row to drill into which projects use it. SQLite index rebuilt on demand from your JSON store. |
+| **Order from Tayda** | One-click dialog dedupes your BOM by part, tailors per-kind search queries (resistor, cap, pot, IC), and opens Tayda search-result tabs in batches of 5. Per-part "ordered" checkboxes save shopping progress per project. |
+| **Mouser stock + price (BYOK)** | Bring your own free Mouser Search API key (separate from Anthropic). Backend exposes `/mouser/search/*` with 6-hour response caching to stay under the free-tier 1000-req/day cap. |
 | **Build-log photos** | Drag-drop image upload per project. Captioned, timestamped, full-viewport view, easy delete. |
-| **Bench mode** | Grouped build-along checklist in solder order. Orientation hints on polarity-sensitive rows. Filters for "polarity only" and "pending only" + live progress bar. |
-| **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency. |
-| **Debug helper + AI diagnosis** | Per-IC expected pin voltages for 7 seed chips, audio-probe procedure, common-failure triage. AI diagnosis card reasons over symptom + measured voltages + cached wiring image and tells you what to probe next. |
+| **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency, fully offline. |
 
 ## Quickstart
 
@@ -52,45 +61,66 @@ seconds.
 
 Tested on Windows 10/11 daily; macOS / Linux should work but aren't tested.
 
-## AI features (optional)
+## Optional AI features
 
-A few features call Anthropic's Claude API:
+Four features call Anthropic's Claude API. They're hidden from the UI
+when no key is configured, so the no-key experience isn't peppered with
+disabled buttons. Add a key in Settings and they appear.
 
-- **BOM extraction fallback** for older PedalPCB PDFs that use a
-  multi-column "Parts List" layout (~$0.01 per PDF, only when the
-  deterministic table parser fails).
-- **Drill template fallback** for image-only / unusual drill pages
-  (~$0.01 per PDF, also only on failure).
-- **Component photo verification** — verify button on every BOM row
-  (~$0.005–0.01 per check).
-- **AI diagnosis** in the Debug tab (~$0.02–0.05 per call, cheaper on
-  repeat thanks to schematic prompt caching).
+| Feature | What it adds | Cost (typical) |
+|---|---|---|
+| **BOM extraction fallback** | Reads older PedalPCB "Parts List" PDFs that the deterministic table parser can't handle. Only fires when deterministic parsing returns zero rows. | ~$0.01 per PDF |
+| **Drill template fallback** | Extracts hole positions from image-only or unusually laid-out drill pages. Only fires when the vector-curve extractor returns nothing. | ~$0.01 per PDF |
+| **Component photo verification** | Per-row Verify button on the BOM tab. Snap a photo, get a match / mismatch / unsure verdict before soldering. | ~$0.005–0.01 per check |
+| **AI fault diagnosis** | Debug-tab card. Reasons over your symptom + measured pin voltages + cached wiring image; tells you what to probe next. Schematic prompt caching makes repeat calls cheaper. | ~$0.02–0.05 per call |
 
-**Modern PedalPCB PDFs ingest fully without any key.** Only the
-AI-specific features above need one.
+Typical usage is **$1–5 per active build**. **[Set a usage
+limit](https://console.anthropic.com/settings/limits)** before heavy use
+— a runaway loop on pay-as-you-go can cost more.
 
-Two ways to provide a key:
+### Why we built the no-key path first
+
+Online pushback against AI features in DIY tools is real, and it has
+good reasons behind it: cost, lock-in, opacity, environmental concerns,
+and the LLM-shaped hammer treating every problem as a nail.
+
+pedal-bench's design rule is **deterministic-first, AI as augmentation,
+never as a gate**. Modern PedalPCB build docs have predictable vector
+layouts — we read them with `pdfplumber` and never call an LLM. DIYLC
+files are XStream XML — we parse them with `xml.etree`. Drill geometry
+is `build123d` math, not an LLM "imagining" hole positions.
+
+AI earns its place in four spots where there's no good deterministic
+alternative: vision against arbitrary photos, OCR-shaped text
+extraction, and reasoning over voltage readings. Even there, every AI
+feature degrades cleanly to "not available" when no key is present —
+and the rest of the app keeps working.
+
+If you want the AI extras, add a key. If you don't, you're not missing
+the core of pedal-bench.
+
+### Adding a key
+
+Two ways to provide one:
 
 1. **Self-host:** copy `backend/.env.example` to `backend/.env` and set
    `ANTHROPIC_API_KEY`. Loaded at backend startup.
-2. **Bring-your-own-key (BYOK):** any user can paste their key into
-   **Settings** in the web UI. Stored in browser localStorage, sent as a
-   request header on every API call, **never persisted server-side.**
+2. **Bring-your-own-key (BYOK):** paste your key into **Settings** in
+   the web UI. Stored in browser localStorage, sent as a request header
+   on every API call, **never persisted server-side.**
 
 Get a key at [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys).
-**Set a usage limit** at [console.anthropic.com/settings/limits](https://console.anthropic.com/settings/limits)
-before heavy use — the tool's normal usage is around $1–5/month per active
-build, but a runaway loop on pay-as-you-go can cost more.
 
-The header in the app shows AI status: "AI: ready" / "AI: your key" /
-"Set up AI →". If you see the third one, click it.
+The header pill shows status: emerald **AI: ready** / **AI: your key**
+when configured, neutral **AI: off** when not. The "off" state is a
+calm signpost, not a nag.
 
 ## Other commands
 
 ```bash
 npm run dev:backend    # only FastAPI
 npm run dev:frontend   # only Vite
-npm run test           # Python test suite (162 tests)
+npm run test           # Python test suite (217 tests)
 npm run typecheck      # tsc --noEmit on the frontend
 npm run build          # production build of the frontend
 ```
@@ -159,12 +189,13 @@ pedal-bench/
 npm run test
 ```
 
-162 backend tests cover value decoders, PedalPCB BOM extraction
-(deterministic + AI parser logic), Tayda coordinate parsing, STL
+217 backend tests cover value decoders, PedalPCB BOM extraction
+(deterministic + AI parser logic), DIYLC `.diy` parser (both v3 and v4
+file formats, generic-refdes detection), cross-project SQLite inventory
+index, Mouser API response parsing, Tayda coordinate parsing, STL
 generation (watertight meshes + bbox assertions), URL fetcher, AI drill
-extraction parser, AI BOM extraction parser, AI diagnosis parser, AI
-component-verify parser. Drop a real PedalPCB PDF at
-`backend/tests/fixtures/sherwood.pdf` to enable the end-to-end BOM
+/ BOM / diagnosis / component-verify parsers. Drop a real PedalPCB PDF
+at `backend/tests/fixtures/sherwood.pdf` to enable the end-to-end BOM
 integration test (otherwise auto-skipped).
 
 Frontend typecheck: `npm run typecheck`.
@@ -180,6 +211,7 @@ Frontend typecheck: `npm run typecheck`.
 - [x] SQLite-backed cross-project inventory (Inventory page)
 - [x] Mouser Search API integration (BYOK)
 - [x] DIYLC `.diy` file import
+- [x] First-class no-AI-key experience (hidden surfaces, neutral pill, capabilities panel)
 - [ ] Wire Mouser stock + price into BOM rows (per-row column)
 - [ ] Community-corroborated BOMs (requires hosted backend)
 - [ ] Optional hosted instance for non-technical builders
