@@ -12,6 +12,7 @@ import {
   type ComponentKind,
 } from "@/components/bom/componentColors";
 import { VerifyComponentDialog } from "@/components/bom/VerifyComponentDialog";
+import { TaydaShoppingDialog } from "@/components/bom/TaydaShoppingDialog";
 
 interface Ctx {
   slug: string;
@@ -47,6 +48,7 @@ export function BOMTab() {
     project.refdes_map ?? {},
   );
   const [verifyRow, setVerifyRow] = useState<BOMItem | null>(null);
+  const [taydaOpen, setTaydaOpen] = useState(false);
   const tableBodyRef = useRef<HTMLDivElement>(null);
 
   const dirty = useMemo(
@@ -228,6 +230,14 @@ export function BOMTab() {
           )}
         </div>
         <div className="ml-auto flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => setTaydaOpen(true)}
+            disabled={bom.length === 0}
+            title="Open Tayda search results for each part"
+          >
+            Order from Tayda…
+          </Button>
           <Button onClick={addRow}>+ Add row</Button>
           <Button
             variant="primary"
@@ -423,6 +433,13 @@ export function BOMTab() {
           slug={slug}
           row={verifyRow}
           onClose={() => setVerifyRow(null)}
+        />
+      )}
+      {taydaOpen && (
+        <TaydaShoppingDialog
+          bom={bom}
+          projectSlug={slug}
+          onClose={() => setTaydaOpen(false)}
         />
       )}
     </div>
