@@ -38,3 +38,6 @@ projectnotes.txt
 # User data stays in-repo (small JSON) — do not ignore `projects/` or
 # `inventory.json`. Do ignore generated STLs if you prefer to regenerate:
 # projects/*/drill/*.stl
+
+# SQLite index (rebuilt from projects/ JSON on demand)
+pedal_bench_index.sqlite

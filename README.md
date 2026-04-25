@@ -18,6 +18,9 @@ debugging — all in one place.
 | **Panel artwork export** | Print-ready SVG (vector) or 600-DPI PNG with knob labels and pedal title at 1:1 scale — for water-slide decals or UV print workflows. |
 | **BOM editor + photo verification** | Dense, inline-editable table. AI-powered "verify" button on each row: snap a photo of the part, get a match / mismatch / unsure verdict before soldering. |
 | **Order from Tayda** | One-click dialog dedupes your BOM by part, tailors per-kind search queries (resistor, cap, pot, IC), and opens Tayda search-result tabs in batches of 5. Per-part "ordered" checkboxes save shopping progress per project across sessions. |
+| **Mouser API integration (BYOK)** | Bring your own free Mouser Search API key in Settings; backend exposes `/mouser/search/keyword` and `/mouser/search/parts` endpoints with response caching (6h TTL) so you stay under the 1000-req/day cap. |
+| **DIYLC `.diy` file import** | Drop a DIYLC project file on Home — same path as PDF drop. Parser handles both v3 (`org.diylc.core.Project` root) and v4 (`<project>` root) formats, classifies components by tag, and pulls reference designators + values into a ready-to-use BOM. |
+| **Cross-project inventory** | New Inventory page shows every unique part across all your projects with totals — "100K resistor: 18 across 5 projects" — and click any row to drill into which projects use it. SQLite index rebuilt on demand from the JSON store. |
 | **Build-log photos** | Drag-drop image upload per project. Captioned, timestamped, full-viewport view, easy delete. |
 | **Bench mode** | Grouped build-along checklist in solder order. Orientation hints on polarity-sensitive rows. Filters for "polarity only" and "pending only" + live progress bar. |
 | **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency. |
@@ -174,9 +177,11 @@ Frontend typecheck: `npm run typecheck`.
 - [x] AI component verification + AI fault diagnosis
 - [x] Print-ready drill template (with crosshairs) + build-log photos
 - [x] BYOK + public release
-- [ ] SQLite-backed cross-project queries + community-corroborated BOMs
-- [ ] Supplier API integration (Tayda / Mouser stock + price)
-- [ ] DIYLC `.diy` file import
+- [x] SQLite-backed cross-project inventory (Inventory page)
+- [x] Mouser Search API integration (BYOK)
+- [x] DIYLC `.diy` file import
+- [ ] Wire Mouser stock + price into BOM rows (per-row column)
+- [ ] Community-corroborated BOMs (requires hosted backend)
 - [ ] Optional hosted instance for non-technical builders
 
 ## License

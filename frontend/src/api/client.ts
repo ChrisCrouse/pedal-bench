@@ -5,6 +5,7 @@
  * backend stabilizes we'll auto-generate this from the OpenAPI schema.
  */
 import { getApiKey } from "@/lib/apiKey";
+import { getMouserKey } from "@/lib/mouserKey";
 
 export type Side = "A" | "B" | "C" | "D" | "E";
 export type Status = "planned" | "ordered" | "building" | "finishing" | "done";
@@ -135,11 +136,23 @@ function withApiKey(headers: HeadersInit | undefined): HeadersInit {
   return { ...(headers ?? {}), "X-Anthropic-Key": key };
 }
 
+function withMouserKey(headers: HeadersInit | undefined): HeadersInit {
+  const key = getMouserKey();
+  if (!key) return headers ?? {};
+  return { ...(headers ?? {}), "X-Mouser-Key": key };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const baseHeaders: HeadersInit = { "Content-Type": "application/json" };
+  const headersWithAnthropic = withApiKey({
+    ...baseHeaders,
+    ...(init?.headers ?? {}),
+  });
+  // Mouser routes also need their key — attach unconditionally; backend
+  // ignores the header on routes that don't read it.
   const merged: RequestInit = {
     ...init,
-    headers: withApiKey({ ...baseHeaders, ...(init?.headers ?? {}) }),
+    headers: withMouserKey(headersWithAnthropic),
   };
   const res = await fetch(BASE + path, merged);
   if (!res.ok) {
@@ -178,6 +191,13 @@ export interface DebugDataset {
   common_failures: CommonFailure[];
 }
 
+export interface DIYLCExtractOut {
+  suggested_name: string | null;
+  bom: BOMItem[];
+  skipped_count: number;
+  warnings: string[];
+}
+
 export interface PDFExtractOut {
   suggested_name: string | null;
   suggested_enclosure: string | null;
@@ -210,10 +230,91 @@ export interface AIStatus {
   source: "header" | "env" | null;
 }
 
+export interface InventoryStats {
+  project_count: number;
+  unique_parts: number;
+  total_parts: number;
+  by_kind: { kind: string; quantity: number }[];
+}
+
+export interface InventoryPart {
+  kind: string;
+  value_norm: string;
+  display_value: string;
+  total_qty: number;
+  project_count: number;
+  project_slugs: string[];
+}
+
+export interface InventoryProjectHit {
+  slug: string;
+  name: string;
+  status: Status;
+  quantity: number;
+}
+
+export interface MouserMatch {
+  mfr_part_number: string;
+  mouser_part_number: string;
+  manufacturer: string;
+  description: string;
+  in_stock: number;
+  availability_text: string;
+  lead_time: string | null;
+  lifecycle_status: string | null;
+  price_usd: number | null;
+  price_breaks: { qty: number; price: number }[];
+  product_url: string;
+  datasheet_url: string | null;
+  image_url: string | null;
+}
+
+export interface MouserStatus {
+  available: boolean;
+  source: "header" | null;
+}
+
 export const api = {
   health: () => request<{ status: string; service: string }>("/health"),
   aiStatus: {
     get: () => request<AIStatus>("/ai/status"),
+  },
+  mouser: {
+    status: () => request<MouserStatus>("/mouser/status"),
+    keyword: (keyword: string, in_stock_only = true, records = 10) =>
+      request<{ matches: MouserMatch[] }>("/mouser/search/keyword", {
+        method: "POST",
+        body: JSON.stringify({ keyword, in_stock_only, records }),
+      }),
+    parts: (part_numbers: string[]) =>
+      request<{ results: Record<string, MouserMatch[]> }>(
+        "/mouser/search/parts",
+        { method: "POST", body: JSON.stringify({ part_numbers }) },
+      ),
+  },
+  inventory: {
+    stats: () => request<InventoryStats>("/inventory/stats"),
+    parts: (kind?: string, search?: string) => {
+      const qs = new URLSearchParams();
+      if (kind) qs.set("kind", kind);
+      if (search) qs.set("search", search);
+      const q = qs.toString();
+      return request<{ parts: InventoryPart[] }>(
+        `/inventory/parts${q ? `?${q}` : ""}`,
+      );
+    },
+    projectsUsing: (kind: string, valueNorm: string) =>
+      request<{ projects: InventoryProjectHit[] }>(
+        `/inventory/parts/${encodeURIComponent(kind)}/${encodeURIComponent(valueNorm)}/projects`,
+      ),
+  },
+  diylc: {
+    extract: (file: File) => uploadPdf<DIYLCExtractOut>("/diylc/extract", file),
+    createProject: (file: File, name?: string, enclosure?: string) =>
+      uploadPdf<Project>("/projects/from-diy", file, {
+        ...(name ? { name } : {}),
+        ...(enclosure ? { enclosure } : {}),
+      }),
   },
   pdf: {
     extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),

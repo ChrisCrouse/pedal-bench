@@ -80,6 +80,16 @@ function Header() {
       <nav className="flex items-center gap-4 text-sm text-zinc-600 dark:text-zinc-400">
         <AIStatusPill />
         <NavLink
+          to="/inventory"
+          className={({ isActive }) =>
+            isActive
+              ? "font-medium text-emerald-700 dark:text-emerald-400"
+              : "hover:text-zinc-900 dark:hover:text-zinc-100"
+          }
+        >
+          Inventory
+        </NavLink>
+        <NavLink
           to="/decoder"
           className={({ isActive }) =>
             isActive
