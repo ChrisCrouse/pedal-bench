@@ -29,11 +29,6 @@ export function NoKeyCapabilities() {
             the PDF's vector layout.
           </Item>
           <Item>
-            <strong>DIYLC <code>.diy</code> import</strong> — parses XStream
-            XML to a real BOM, including layouts that reuse non-unique
-            reference designators.
-          </Item>
-          <Item>
             <strong>Drill designer</strong> — full SVG canvas, multi-select,
             undo/redo, mirror groups, smart-layout presets, paste-from-Tayda
             coordinates.

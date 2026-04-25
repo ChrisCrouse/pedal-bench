@@ -191,13 +191,6 @@ export interface DebugDataset {
   common_failures: CommonFailure[];
 }
 
-export interface DIYLCExtractOut {
-  suggested_name: string | null;
-  bom: BOMItem[];
-  skipped_count: number;
-  warnings: string[];
-}
-
 export interface PDFExtractOut {
   suggested_name: string | null;
   suggested_enclosure: string | null;
@@ -307,14 +300,6 @@ export const api = {
       request<{ projects: InventoryProjectHit[] }>(
         `/inventory/parts/${encodeURIComponent(kind)}/${encodeURIComponent(valueNorm)}/projects`,
       ),
-  },
-  diylc: {
-    extract: (file: File) => uploadPdf<DIYLCExtractOut>("/diylc/extract", file),
-    createProject: (file: File, name?: string, enclosure?: string) =>
-      uploadPdf<Project>("/projects/from-diy", file, {
-        ...(name ? { name } : {}),
-        ...(enclosure ? { enclosure } : {}),
-      }),
   },
   pdf: {
     extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),

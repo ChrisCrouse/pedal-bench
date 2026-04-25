@@ -37,17 +37,7 @@ export function HomePage() {
     },
   });
 
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const importDiy = useMutation({
-    mutationFn: (file: File) => api.diylc.createProject(file),
-    onSuccess: (project) => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project.slug}/bom`);
-    },
-  });
-
-  const busy = extract.isPending || extractUrl.isPending || importDiy.isPending;
+  const busy = extract.isPending || extractUrl.isPending;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
@@ -68,7 +58,6 @@ export function HomePage() {
         <PdfDropZone
           disabled={busy}
           onFile={(file) => extract.mutate(file)}
-          onDiyFile={(file) => importDiy.mutate(file)}
         />
         <form
           className="mt-3 flex flex-col gap-2 sm:flex-row"
@@ -102,16 +91,6 @@ export function HomePage() {
         {extractUrl.isPending && (
           <div className="mt-2 text-center text-sm text-zinc-500">
             Fetching PedalPCB product page and downloading the PDF…
-          </div>
-        )}
-        {importDiy.isPending && (
-          <div className="mt-2 text-center text-sm text-zinc-500">
-            Parsing DIYLC project and creating build…
-          </div>
-        )}
-        {importDiy.isError && (
-          <div className="mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
-            DIYLC import failed: {(importDiy.error as Error).message}
           </div>
         )}
         {extract.isError && (

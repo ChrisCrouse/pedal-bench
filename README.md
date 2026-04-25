@@ -1,8 +1,8 @@
 # pedal-bench
 
-A local workbench for DIY guitar pedal builds. Drop a PedalPCB PDF, a
-DIYLC `.diy` file, or paste a product URL — and walk through ordering,
-drilling, soldering, finishing, and debugging in one place.
+A local workbench for DIY guitar pedal builds. Drop a PedalPCB PDF or
+paste a product URL — and walk through ordering, drilling, soldering,
+finishing, and debugging in one place.
 
 **Works fully offline.** AI is opt-in for four optional features; the
 other ~30 capabilities are deterministic and need no API key, no signup,
@@ -22,7 +22,6 @@ SQLite, SVG canvas math, local color-band decoders.
 | Area | What you can do |
 |---|---|
 | **PedalPCB ingestion** | Drop a modern PedalPCB build PDF, or paste a `pedalpcb.com/product/...` URL. Tool fetches the build doc and extracts title, enclosure, BOM, drill holes, wiring diagram via vector parsing — no AI required for current PedalPCB layouts. |
-| **DIYLC `.diy` import** | Drop a DIYLC project file. Parser handles both legacy (`org.diylc.core.Project`) and current (`<project>`) XML formats, classifies components by tag, even handles RobRobinette-style files where every resistor is named "R1". |
 | **Drill designer** | SVG unfolded-enclosure canvas. Click to place holes, drag to reposition, scroll-wheel to resize, multi-select, undo/redo, mirror-group symmetry. Smart-layout presets. Paste Tayda Box-Tool coordinates directly. |
 | **Print template + 3D drill guides** | Print-ready 1:1 mm SVG/PNG with crosshairs at every hole center for center-punching. Or one-click parametric STL drill guides via `build123d` for 3D printing. |
 | **Panel artwork export** | Print-ready SVG (vector) or 600-DPI PNG with knob labels and pedal title at 1:1 scale — for water-slide decals or UV print workflows. |
@@ -86,9 +85,9 @@ and the LLM-shaped hammer treating every problem as a nail.
 
 pedal-bench's design rule is **deterministic-first, AI as augmentation,
 never as a gate**. Modern PedalPCB build docs have predictable vector
-layouts — we read them with `pdfplumber` and never call an LLM. DIYLC
-files are XStream XML — we parse them with `xml.etree`. Drill geometry
-is `build123d` math, not an LLM "imagining" hole positions.
+layouts — we read them with `pdfplumber` and never call an LLM. Drill
+geometry is `build123d` math, not an LLM "imagining" hole positions.
+Color-band decoders are pure local math, not a vision call.
 
 AI earns its place in four spots where there's no good deterministic
 alternative: vision against arbitrary photos, OCR-shaped text
@@ -120,7 +119,7 @@ calm signpost, not a nag.
 ```bash
 npm run dev:backend    # only FastAPI
 npm run dev:frontend   # only Vite
-npm run test           # Python test suite (217 tests)
+npm run test           # Python test suite
 npm run typecheck      # tsc --noEmit on the frontend
 npm run build          # production build of the frontend
 ```
@@ -189,9 +188,8 @@ pedal-bench/
 npm run test
 ```
 
-217 backend tests cover value decoders, PedalPCB BOM extraction
-(deterministic + AI parser logic), DIYLC `.diy` parser (both v3 and v4
-file formats, generic-refdes detection), cross-project SQLite inventory
+Backend tests cover value decoders, PedalPCB BOM extraction
+(deterministic + AI parser logic), cross-project SQLite inventory
 index, Mouser API response parsing, Tayda coordinate parsing, STL
 generation (watertight meshes + bbox assertions), URL fetcher, AI drill
 / BOM / diagnosis / component-verify parsers. Drop a real PedalPCB PDF
@@ -210,7 +208,6 @@ Frontend typecheck: `npm run typecheck`.
 - [x] BYOK + public release
 - [x] SQLite-backed cross-project inventory (Inventory page)
 - [x] Mouser Search API integration (BYOK)
-- [x] DIYLC `.diy` file import
 - [x] First-class no-AI-key experience (hidden surfaces, neutral pill, capabilities panel)
 - [ ] Wire Mouser stock + price into BOM rows (per-row column)
 - [ ] Community-corroborated BOMs (requires hosted backend)
