@@ -30,7 +30,6 @@ SQLite, SVG canvas math, local color-band decoders.
 | **Debug helper** | Per-IC expected pin voltages for 7 seed chips with live "ok / out of range" highlighting as you measure. Audio-probe procedure. Common-failure triage by symptom. |
 | **Cross-project inventory** | Inventory page shows every unique part across all your projects with totals — "100K resistor: 18 across 5 projects" — and click any row to drill into which projects use it. SQLite index rebuilt on demand from your JSON store. |
 | **Order from Tayda** | One-click dialog dedupes your BOM by part, tailors per-kind search queries (resistor, cap, pot, IC), and opens Tayda search-result tabs in batches of 5. Per-part "ordered" checkboxes save shopping progress per project. |
-| **Mouser stock + price (BYOK)** | Bring your own free Mouser Search API key (separate from Anthropic). Backend exposes `/mouser/search/*` with 6-hour response caching to stay under the free-tier 1000-req/day cap. |
 | **Build-log photos** | Drag-drop image upload per project. Captioned, timestamped, full-viewport view, easy delete. |
 | **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency, fully offline. |
 
@@ -190,7 +189,7 @@ npm run test
 
 Backend tests cover value decoders, PedalPCB BOM extraction
 (deterministic + AI parser logic), cross-project SQLite inventory
-index, Mouser API response parsing, Tayda coordinate parsing, STL
+index, Tayda coordinate parsing, STL
 generation (watertight meshes + bbox assertions), URL fetcher, AI drill
 / BOM / diagnosis / component-verify parsers. Drop a real PedalPCB PDF
 at `backend/tests/fixtures/sherwood.pdf` to enable the end-to-end BOM
@@ -207,9 +206,8 @@ Frontend typecheck: `npm run typecheck`.
 - [x] Print-ready drill template (with crosshairs) + build-log photos
 - [x] BYOK + public release
 - [x] SQLite-backed cross-project inventory (Inventory page)
-- [x] Mouser Search API integration (BYOK)
 - [x] First-class no-AI-key experience (hidden surfaces, neutral pill, capabilities panel)
-- [ ] Wire Mouser stock + price into BOM rows (per-row column)
+- [ ] DigiKey or Octopart integration (free public APIs — Mouser's "free" tier requires sales approval, removed)
 - [ ] Community-corroborated BOMs (requires hosted backend)
 - [ ] Optional hosted instance for non-technical builders
 

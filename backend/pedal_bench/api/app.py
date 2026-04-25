@@ -16,7 +16,6 @@ from pedal_bench.api.routes import (
     holes,
     inventory,
     layout_presets,
-    mouser,
     pdf,
     photos,
     projects,
@@ -62,7 +61,6 @@ def create_app() -> FastAPI:
     app.include_router(diagnose.router, prefix="/api/v1")
     app.include_router(ai_status.router, prefix="/api/v1")
     app.include_router(inventory.router, prefix="/api/v1")
-    app.include_router(mouser.router, prefix="/api/v1")
 
     @app.get("/api/v1/health", tags=["meta"])
     def health() -> dict[str, str]:

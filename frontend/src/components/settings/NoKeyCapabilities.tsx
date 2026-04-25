@@ -61,10 +61,6 @@ export function NoKeyCapabilities() {
             search results in batches, tracks shopping progress per project.
           </Item>
           <Item>
-            <strong>Mouser stock + price</strong> — bring your own free Mouser
-            Search API key (separate from Anthropic) for stock visibility.
-          </Item>
-          <Item>
             <strong>Value decoder</strong> — bidirectional resistor (text ↔
             "4K7" ↔ 4-band colors) and capacitor parsing, pure local TS.
           </Item>

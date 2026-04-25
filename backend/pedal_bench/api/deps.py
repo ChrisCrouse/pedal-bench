@@ -30,18 +30,6 @@ def get_request_api_key(
     return (x_anthropic_key or "").strip() or None
 
 
-def get_mouser_key(
-    x_mouser_key: str | None = Header(default=None, alias="X-Mouser-Key"),
-) -> str | None:
-    """Per-request Mouser Search API key from the browser (BYOK).
-
-    Mouser's ToS requires per-user keys (no shared keys), so this never
-    falls back to env vars — if the header is missing, callers return 400.
-    """
-    return (x_mouser_key or "").strip() or None
-
-
-
 
 @lru_cache(maxsize=1)
 def get_enclosure_catalog() -> dict[str, Enclosure]:
