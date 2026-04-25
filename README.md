@@ -2,36 +2,103 @@
 
 A local workbench for DIY guitar pedal builds. Drop a PedalPCB PDF or
 paste a product URL — and walk through ordering, drilling, soldering,
-finishing, and debugging in one place.
+and debugging in one place. Runs on your machine, stores your projects
+as plain JSON in a folder you can back up.
 
-**Works fully offline.** AI is opt-in for four optional features; the
-other ~30 capabilities are deterministic and need no API key, no signup,
-and no internet beyond ordering parts. See *[What works without an API
-key](#what-works-without-an-api-key)* below.
+**The whole tool works fully offline.** No account, no signup, no
+phone-home. AI is **strictly optional** — four small features become
+available if you bring an Anthropic API key, but everything else is
+deterministic Python and TypeScript that runs without one.
 
 ![status — working](https://img.shields.io/badge/status-working-emerald)
 ![license — MIT](https://img.shields.io/badge/license-MIT-blue)
 ![no-key first](https://img.shields.io/badge/no--key-first--class-blue)
 
-## What works without an API key
+![Home page — drop a PedalPCB PDF or paste a product URL](screenshots/01-home.png)
 
-The core build flow needs nothing beyond Python, Node, and your browser.
-Almost everything is deterministic — vector PDF parsing, XML parsing,
-SQLite, SVG canvas math, local color-band decoders.
+## What pedal-bench does (without an API key)
 
-| Area | What you can do |
-|---|---|
-| **PedalPCB ingestion** | Drop a modern PedalPCB build PDF, or paste a `pedalpcb.com/product/...` URL. Tool fetches the build doc and extracts title, enclosure, BOM, drill holes, wiring diagram via vector parsing — no AI required for current PedalPCB layouts. |
-| **Drill designer** | SVG unfolded-enclosure canvas. Click to place holes, drag to reposition, scroll-wheel to resize, multi-select, undo/redo, mirror-group symmetry. Smart-layout presets. Paste Tayda Box-Tool coordinates directly. |
-| **Print template + 3D drill guides** | Print-ready 1:1 mm SVG/PNG with crosshairs at every hole center for center-punching. Or one-click parametric STL drill guides via `build123d` for 3D printing. |
-| **Panel artwork export** | Print-ready SVG (vector) or 600-DPI PNG with knob labels and pedal title at 1:1 scale — for water-slide decals or UV print workflows. |
-| **BOM editor** | Dense, inline-editable table with color-coded chips by component kind, click-to-tag onto the cached PCB layout image, polarity warnings on orientation-sensitive rows. |
-| **Bench mode** | Grouped build-along checklist in solder order. Polarity warnings on diodes/electrolytics/transistors. Filters for "polarity only" and "pending only" + live progress bar. |
-| **Debug helper** | Per-IC expected pin voltages for 7 seed chips with live "ok / out of range" highlighting as you measure. Audio-probe procedure. Common-failure triage by symptom. |
-| **Cross-project inventory** | Inventory page shows every unique part across all your projects with totals — "100K resistor: 18 across 5 projects" — and click any row to drill into which projects use it. SQLite index rebuilt on demand from your JSON store. |
-| **Order from Tayda** | One-click dialog dedupes your BOM by part, tailors per-kind search queries (resistor, cap, pot, IC), and opens Tayda search-result tabs in batches of 5. Per-part "ordered" checkboxes save shopping progress per project. |
-| **Build-log photos** | Drag-drop image upload per project. Captioned, timestamped, full-viewport view, easy delete. |
-| **Value decoder** | Bidirectional resistor (text ↔ "4K7" ↔ 4-band colors) and capacitor parsing. Pure-TS port of the Python decoders, zero latency, fully offline. |
+Modern PedalPCB build docs have predictable vector layouts; we read
+them with `pdfplumber` and never call an LLM. Drill geometry is
+`build123d` math, not a language model "imagining" hole positions.
+Color-band decoders are pure local arithmetic. Nearly the entire app
+is deterministic by design.
+
+### Ingestion
+
+Drop a modern PedalPCB build PDF or paste a `pedalpcb.com/product/...`
+URL. The tool fetches the build doc and pulls out title, enclosure,
+BOM rows, drill template, and wiring diagram automatically. No AI
+required for current PedalPCB layouts.
+
+### Project overview
+
+Per-build workspace with name, enclosure, status, free-form notes,
+attached source PDF (re-runnable extraction), and a build-log photo
+gallery. Everything saved as JSON under `projects/<slug>/`.
+
+![Project Overview tab — name, enclosure, status, notes, source PDF, photos](screenshots/02-overview.png)
+
+### Drill designer
+
+SVG unfolded-enclosure canvas. Click to place holes, drag to
+reposition, scroll-wheel to resize, multi-select with shift-drag,
+undo/redo, live mirror groups. Smart-layout presets for pot grids and
+jack rows. Paste Tayda Box-Tool coordinates directly. Export to
+print-ready 1:1 mm SVG/PNG (with crosshairs for center-punching) or
+one-click parametric STL drill guides via `build123d` for 3D printing.
+
+![Drill designer — five faces of the enclosure with holes placed and inspector tools](screenshots/03-drill-designer.png)
+
+### BOM editor with PCB layout
+
+Dense inline-editable table, color-coded chips by component kind
+(resistor / cap / electrolytic / diode / transistor / IC / pot), click
+any row to highlight that part on the cached PCB layout, polarity
+warnings on orientation-sensitive rows. Filter chips group by kind so
+you can scan all the resistors at once.
+
+![BOM tab — color-coded rows beside the cached PedalPCB layout image](screenshots/04-bom.png)
+
+### Bench mode
+
+Grouped build-along checklist in solder order. Polarity warnings on
+diodes, electrolytics, and transistors. Filters for "polarity only"
+and "pending only," plus a live progress bar.
+
+### Debug helper
+
+Per-IC expected pin voltages for 7 seed chips, with live "ok / out of
+range" highlighting as you type measurements. Audio-probe procedure.
+Common-failure triage organized by symptom. All of this is bench
+reference data shipped with the app, no LLM involved.
+
+### Cross-project inventory
+
+Inventory page shows every unique part across all your projects with
+totals — "100K resistor: 12 across 3 projects" — and click any row to
+drill into which projects use it. Value normalization means "100K" and
+"100k Ohm" count as one part. Backed by a SQLite index rebuilt on
+demand from your JSON project store.
+
+![Inventory page — every unique part across all builds, expandable per row](screenshots/06-inventory.png)
+
+### Order from Tayda
+
+One-click dialog dedupes your BOM by part, tailors per-kind search
+queries (resistor, cap, pot, IC), and opens Tayda search-result tabs
+in batches of 5. Per-part "ordered" checkboxes save shopping progress
+per project across sessions. (Tayda is the only supplier integration
+right now — Mouser's "free" API requires sales approval, so it's not
+viable for hobbyists; we're watching DigiKey/Octopart instead.)
+
+### Value decoder
+
+Bidirectional resistor decoder (text ↔ "4K7" ↔ 4-band colors) and
+capacitor decoder (100n ↔ 0.1µF ↔ 100000pF). Pure TypeScript, zero
+latency, fully offline.
+
+![Value decoder — resistor 4K7 → yellow/violet/red bands; capacitor 100n → 100 nF](screenshots/07-decoder.png)
 
 ## Quickstart
 
@@ -59,59 +126,59 @@ seconds.
 
 Tested on Windows 10/11 daily; macOS / Linux should work but aren't tested.
 
-## Optional AI features
+## A note on AI: it's a bonus, not a gate
 
-Four features call Anthropic's Claude API. They're hidden from the UI
-when no key is configured, so the no-key experience isn't peppered with
-disabled buttons. Add a key in Settings and they appear.
+Online pushback against AI features in DIY tools is real and has good
+reasons behind it: cost, lock-in, opacity, environmental concerns, and
+the LLM-shaped hammer treating every problem as a nail.
+
+pedal-bench's rule is **deterministic-first, AI as augmentation, never
+as a gate**. The whole feature set above runs without an API key, no
+signup, no internet beyond ordering parts. We hide AI surfaces from the
+UI entirely when no key is configured — no amber nags, no disabled
+buttons, no "upgrade to unlock" prompts. The header pill goes neutral
+zinc "AI: off" instead of begging for a key.
+
+If you want the AI extras described below, add a key. If you don't,
+**you are not missing the core of pedal-bench.** The capabilities panel
+on the Settings page lays this out plainly so prospective users can
+make an informed choice.
+
+### What a key adds (four optional features)
 
 | Feature | What it adds | Cost (typical) |
 |---|---|---|
 | **BOM extraction fallback** | Reads older PedalPCB "Parts List" PDFs that the deterministic table parser can't handle. Only fires when deterministic parsing returns zero rows. | ~$0.01 per PDF |
-| **Drill template fallback** | Extracts hole positions from image-only or unusually laid-out drill pages. Only fires when the vector-curve extractor returns nothing. | ~$0.01 per PDF |
+| **Drill template fallback** | Extracts hole positions from image-only or unusually laid-out drill pages. Only fires when vector extraction returns nothing. | ~$0.01 per PDF |
 | **Component photo verification** | Per-row Verify button on the BOM tab. Snap a photo, get a match / mismatch / unsure verdict before soldering. | ~$0.005–0.01 per check |
-| **AI fault diagnosis** | Debug-tab card. Reasons over your symptom + measured pin voltages + cached wiring image; tells you what to probe next. Schematic prompt caching makes repeat calls cheaper. | ~$0.02–0.05 per call |
+| **AI fault diagnosis** | Debug-tab card. Reasons over your symptom + measured pin voltages + cached wiring image; suggests what to probe next. Schematic prompt caching makes repeat calls cheaper. | ~$0.02–0.05 per call |
 
 Typical usage is **$1–5 per active build**. **[Set a usage
-limit](https://console.anthropic.com/settings/limits)** before heavy use
-— a runaway loop on pay-as-you-go can cost more.
+limit](https://console.anthropic.com/settings/limits)** before heavy
+use — a runaway loop on pay-as-you-go can cost more.
 
-### Why we built the no-key path first
+The diagnosis card looks like this when active — a symptom box, your
+pin readings auto-attached, and a structured response with primary
+suspect, reasoning, what to probe next, and caveats:
 
-Online pushback against AI features in DIY tools is real, and it has
-good reasons behind it: cost, lock-in, opacity, environmental concerns,
-and the LLM-shaped hammer treating every problem as a nail.
+![Debug tab — AI fault diagnosis card with symptom input, reasoning, next-probe suggestion](screenshots/05-debug-ai-diagnosis.png)
 
-pedal-bench's design rule is **deterministic-first, AI as augmentation,
-never as a gate**. Modern PedalPCB build docs have predictable vector
-layouts — we read them with `pdfplumber` and never call an LLM. Drill
-geometry is `build123d` math, not an LLM "imagining" hole positions.
-Color-band decoders are pure local math, not a vision call.
-
-AI earns its place in four spots where there's no good deterministic
-alternative: vision against arbitrary photos, OCR-shaped text
-extraction, and reasoning over voltage readings. Even there, every AI
-feature degrades cleanly to "not available" when no key is present —
-and the rest of the app keeps working.
-
-If you want the AI extras, add a key. If you don't, you're not missing
-the core of pedal-bench.
-
-### Adding a key
+### Adding a key (only if you want the four features above)
 
 Two ways to provide one:
 
 1. **Self-host:** copy `backend/.env.example` to `backend/.env` and set
    `ANTHROPIC_API_KEY`. Loaded at backend startup.
 2. **Bring-your-own-key (BYOK):** paste your key into **Settings** in
-   the web UI. Stored in browser localStorage, sent as a request header
-   on every API call, **never persisted server-side.**
+   the web UI. Stored in your browser's localStorage, sent as a request
+   header on every API call, **never persisted server-side.**
 
-Get a key at [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys).
+Get a key at
+[console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys).
 
-The header pill shows status: emerald **AI: ready** / **AI: your key**
-when configured, neutral **AI: off** when not. The "off" state is a
-calm signpost, not a nag.
+The header pill in the screenshot above shows status: emerald **AI:
+ready** / **AI: your key** when configured, neutral zinc **AI: off**
+when not. The "off" state is a calm signpost, not a nag.
 
 ## Other commands
 
