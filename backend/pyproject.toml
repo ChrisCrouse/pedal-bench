@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pedal-bench"
-version = "0.2.0"
+version = "0.3.0"
 description = "Bench copilot for DIY guitar pedal builds — PedalPCB BOM import, build checklist, and 3D-printable drill guides."
 requires-python = ">=3.12,<3.14"
 authors = [{ name = "Chris Crouse" }]

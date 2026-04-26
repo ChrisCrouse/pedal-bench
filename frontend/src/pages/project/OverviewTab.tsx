@@ -23,14 +23,23 @@ export function OverviewTab() {
   const [name, setName] = useState(project.name);
   const [status, setStatus] = useState<Status>(project.status);
   const [notes, setNotes] = useState(project.notes);
+  const [active, setActive] = useState(project.active);
 
   const updateMutation = useMutation({
-    mutationFn: (payload: Partial<Pick<Project, "name" | "status" | "notes">>) =>
+    mutationFn: (payload: Partial<Pick<Project, "name" | "status" | "notes" | "active">>) =>
       api.projects.update(slug, payload),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["projects", updated.slug] });
       if (updated.slug !== slug) navigate(`/projects/${updated.slug}/overview`);
+    },
+  });
+
+  const consumeMutation = useMutation({
+    mutationFn: () => api.projects.consumeReservations(slug),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["projects", slug, "shortage"] });
     },
   });
 
@@ -52,7 +61,10 @@ export function OverviewTab() {
   });
 
   const dirty =
-    name !== project.name || status !== project.status || notes !== project.notes;
+    name !== project.name ||
+    status !== project.status ||
+    notes !== project.notes ||
+    active !== project.active;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-8">
@@ -90,6 +102,20 @@ export function OverviewTab() {
               placeholder="Build notes, mods, measured voltages, stuff to remember for next time…"
             />
           </Field>
+          <Field label="Active">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-zinc-600 dark:text-zinc-400">
+                Include this project's BOM in the global shopping list. Turn off
+                for someday/maybe builds you don't want inflating shortages.
+              </span>
+            </label>
+          </Field>
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs text-zinc-500">
               Created {new Date(project.created_at).toLocaleString()} · Updated{" "}
@@ -98,7 +124,9 @@ export function OverviewTab() {
             <Button
               variant="primary"
               disabled={!dirty || updateMutation.isPending}
-              onClick={() => updateMutation.mutate({ name, status, notes })}
+              onClick={() =>
+                updateMutation.mutate({ name, status, notes, active })
+              }
             >
               {updateMutation.isPending ? "Saving…" : "Save changes"}
             </Button>
@@ -176,6 +204,49 @@ export function OverviewTab() {
       </Card>
 
       <PhotosSection slug={slug} />
+
+      <Card>
+        <CardHeader>
+          <div className="font-semibold">Inventory</div>
+        </CardHeader>
+        <CardBody className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-sm text-zinc-600 dark:text-zinc-400">
+              When the build is done, click <strong>Consume reservations</strong>{" "}
+              to subtract every part you reserved for this project from your
+              owned stock and clear the reservations. Reservations themselves
+              are managed from the BOM tab.
+            </div>
+            <Button
+              variant="secondary"
+              disabled={consumeMutation.isPending}
+              onClick={() => {
+                if (
+                  confirm(
+                    `Subtract this build's reserved parts from your inventory? This is appropriate after you've physically used them.`,
+                  )
+                ) {
+                  consumeMutation.mutate();
+                }
+              }}
+            >
+              {consumeMutation.isPending ? "Consuming…" : "Consume reservations"}
+            </Button>
+          </div>
+          {consumeMutation.isSuccess && (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
+              Consumed {consumeMutation.data.consumed.length} part type
+              {consumeMutation.data.consumed.length === 1 ? "" : "s"} from
+              inventory.
+            </div>
+          )}
+          {consumeMutation.isError && (
+            <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+              Failed: {(consumeMutation.error as Error).message}
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader>

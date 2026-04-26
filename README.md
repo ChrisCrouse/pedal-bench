@@ -59,6 +59,12 @@ undo/redo, live mirror groups. Smart-layout presets for pot grids and
 jack rows. Paste Tayda Box-Tool coordinates directly. Export to
 print-ready 1:1 mm SVG/PNG (with crosshairs for center-punching) or
 one-click parametric STL drill guides via `build123d` for 3D printing.
+STL exports default to a **pilot-hole** template — small bores sized for
+a center punch with conical countersinks that self-center the punch tip,
+plus an optional debossed ring at each hole's final diameter as a
+spacing sanity check. Switch to **mark only** (dimples, no through-hole)
+or **full size** from the STL options dropdown next to the Export
+button.
 
 ![Drill designer — five faces of the enclosure with holes placed and inspector tools](screenshots/03-drill-designer.png)
 

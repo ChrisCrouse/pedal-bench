@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useOutletContext } from "react-router-dom";
-import { api, type BOMItem, type Project } from "@/api/client";
+import { api, type BOMItem, type Project, type ShortageRow } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
@@ -15,6 +15,8 @@ import {
 import { VerifyComponentDialog } from "@/components/bom/VerifyComponentDialog";
 import { TaydaShoppingDialog } from "@/components/bom/TaydaShoppingDialog";
 import { useAIAvailable } from "@/components/ui/AIRequiredNotice";
+import { orientationHintFor } from "@/lib/orientation";
+import { normalizeValue } from "@/lib/partValue";
 
 interface Ctx {
   slug: string;
@@ -117,6 +119,39 @@ export function BOMTab() {
     mutationFn: (map: Record<string, [number, number]>) =>
       api.projects.setRefdesMap(slug, map),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", slug] }),
+  });
+
+  // Shortage view: needed minus available across owned-stock for THIS project.
+  // Refetches when the BOM changes (saveBomMutation invalidates project data).
+  const shortageQuery = useQuery({
+    queryKey: ["projects", slug, "shortage"],
+    queryFn: () => api.projects.shortage(slug),
+  });
+
+  // Index by `(kind, value_norm)` so each BOM row can show its own badge.
+  const shortageByKindValue = useMemo(() => {
+    const m = new Map<string, ShortageRow>();
+    for (const r of shortageQuery.data?.rows ?? []) {
+      m.set(`${r.kind}::${r.value_norm}`, r);
+    }
+    return m;
+  }, [shortageQuery.data]);
+
+  const reserveAllMutation = useMutation({
+    mutationFn: async () => {
+      const rows = shortageQuery.data?.rows ?? [];
+      // For each row, set our reservation to min(needed, available + already_ours).
+      // Backend `set_reservation` with absolute qty handles the math.
+      for (const r of rows) {
+        const target = Math.min(r.needed, r.available + r.reserved_for_self);
+        if (target === r.reserved_for_self) continue;
+        await api.inventory.items.reserve(`${r.kind}::${r.value_norm}`, slug, target);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory"] });
+      qc.invalidateQueries({ queryKey: ["projects", slug, "shortage"] });
+    },
   });
 
   const visible = useMemo(() => {
@@ -277,6 +312,20 @@ export function BOMTab() {
           )}
           <Button
             variant="ghost"
+            onClick={() => reserveAllMutation.mutate()}
+            disabled={
+              shortageQuery.isLoading ||
+              reserveAllMutation.isPending ||
+              !(shortageQuery.data?.rows ?? []).some(
+                (r) => r.available > 0 && r.reserved_for_self < r.needed,
+              )
+            }
+            title="Reserve every available part this build needs against your inventory"
+          >
+            {reserveAllMutation.isPending ? "Reserving…" : "Reserve available"}
+          </Button>
+          <Button
+            variant="ghost"
             onClick={() => setTaydaOpen(true)}
             disabled={bom.length === 0}
             title="Open Tayda search results for each part"
@@ -310,7 +359,11 @@ export function BOMTab() {
                 <Th>Value</Th>
                 <Th>Type</Th>
                 <Th>Notes</Th>
-                <Th className="w-10 text-center">⚠</Th>
+                <Th className="w-20 text-center">
+                  <span title="Polarity-sensitive parts — orient correctly before soldering. Hover the ⚠ for the specific reminder.">
+                    Polarity
+                  </span>
+                </Th>
                 <Th className="w-16 text-right">Qty</Th>
                 <Th className="sticky right-[60px] z-20 w-24 bg-zinc-50 text-center shadow-[-4px_0_8px_-6px_rgba(0,0,0,0.25)] dark:bg-zinc-900">
                   Tag
@@ -381,18 +434,36 @@ export function BOMTab() {
                         className="w-full min-w-[140px]"
                       />
                     </Td>
-                    <Td className="text-center text-amber-600">
-                      {item.polarity_sensitive ? "⚠" : ""}
+                    <Td className="text-center">
+                      {item.polarity_sensitive && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-300"
+                          title={
+                            orientationHintFor(item) ??
+                            "Polarity-sensitive — check orientation before soldering"
+                          }
+                        >
+                          ⚠ check
+                        </span>
+                      )}
                     </Td>
                     <Td className="text-right">
-                      <CellInput
-                        value={String(item.quantity)}
-                        onChange={(v) => {
-                          const n = Math.max(1, Math.floor(Number(v) || 1));
-                          updateAt(actualIdx, { quantity: n });
-                        }}
-                        className="w-12 text-right font-mono"
-                      />
+                      <div className="flex flex-col items-end gap-0.5">
+                        <CellInput
+                          value={String(item.quantity)}
+                          onChange={(v) => {
+                            const n = Math.max(1, Math.floor(Number(v) || 1));
+                            updateAt(actualIdx, { quantity: n });
+                          }}
+                          className="w-12 text-right font-mono"
+                        />
+                        <AvailabilityBadge
+                          row={shortageByKindValue.get(
+                            `${kind}::${normalizeValue(item.value, kind)}`,
+                          )}
+                          needed={item.quantity}
+                        />
+                      </div>
                     </Td>
                     <Td className={`sticky right-[60px] z-10 text-center shadow-[-4px_0_8px_-6px_rgba(0,0,0,0.25)] ${stickyBg}`}>
                       {isTagged ? (
@@ -580,6 +651,48 @@ function Td({ children, className }: { children: React.ReactNode; className?: st
     <td className={`border-b border-zinc-100 px-3 py-1 align-middle dark:border-zinc-800 ${className ?? ""}`}>
       {children}
     </td>
+  );
+}
+
+function AvailabilityBadge({
+  row,
+  needed,
+}: {
+  row: ShortageRow | undefined;
+  needed: number;
+}) {
+  if (!row) return null;
+  // Effective availability for this build: free stock + what we've already
+  // reserved for ourselves (we can keep using those).
+  const effective = row.available + row.reserved_for_self;
+  const ok = effective >= needed;
+  const label = ok
+    ? `✓ ${row.available + row.reserved_for_self}`
+    : `${effective}/${needed}`;
+  const tooltip = [
+    `On hand: ${row.on_hand}`,
+    row.reserved_for_others > 0
+      ? `Reserved by other builds: ${row.reserved_for_others}`
+      : null,
+    row.reserved_for_self > 0
+      ? `Reserved for this build: ${row.reserved_for_self}`
+      : null,
+    !ok ? `Need to buy: ${row.shortfall}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <span
+      title={tooltip}
+      className={[
+        "rounded px-1 text-[10px] font-medium tabular-nums",
+        ok
+          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+          : "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300",
+      ].join(" ")}
+    >
+      {label}
+    </span>
   );
 }
 

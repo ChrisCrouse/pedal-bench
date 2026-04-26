@@ -4,16 +4,23 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from pedal_bench.api.deps import get_project_store
+from pedal_bench.api.deps import get_inventory_store, get_project_store
+from pedal_bench.api.routes.inventory import (
+    consume_reservations_for,
+    project_shortage_for,
+)
 from pedal_bench.api.schemas import (
     BOMItemIO,
     BuildProgressIO,
+    ConsumeReservationsOut,
     HoleIO,
     ProjectCreate,
     ProjectOut,
     ProjectSummary,
     ProjectUpdate,
+    ShortageOut,
 )
+from pedal_bench.core.inventory_store import InventoryStore
 from pedal_bench.core.models import (
     VALID_STATUS,
     BOMItem,
@@ -47,6 +54,7 @@ def _project_to_out(p: Project) -> ProjectOut:
         created_at=p.created_at,
         updated_at=p.updated_at,
         drill_tool_url=p.drill_tool_url,
+        active=p.active,
     )
 
 
@@ -133,6 +141,8 @@ def update_project(
         p.enclosure = payload.enclosure
     if payload.notes is not None:
         p.notes = payload.notes
+    if payload.active is not None:
+        p.active = payload.active
     store.save(p)
     return _project_to_out(p)
 
@@ -141,7 +151,32 @@ def update_project(
 def delete_project(
     slug: str,
     store: ProjectStore = Depends(get_project_store),
+    inv: InventoryStore = Depends(get_inventory_store),
 ) -> None:
     if not store.exists(slug):
         raise HTTPException(404, f"Unknown project {slug!r}")
+    # Drop any reservations belonging to this project so freed inventory
+    # becomes available again for other builds.
+    inv.clear_reservations(slug)
     store.delete(slug)
+
+
+@router.get("/{slug}/shortage", response_model=ShortageOut)
+def project_shortage(
+    slug: str,
+    store: ProjectStore = Depends(get_project_store),
+    inv: InventoryStore = Depends(get_inventory_store),
+) -> ShortageOut:
+    return project_shortage_for(slug, inv, store)
+
+
+@router.post(
+    "/{slug}/consume-reservations",
+    response_model=ConsumeReservationsOut,
+)
+def consume_reservations(
+    slug: str,
+    store: ProjectStore = Depends(get_project_store),
+    inv: InventoryStore = Depends(get_inventory_store),
+) -> ConsumeReservationsOut:
+    return consume_reservations_for(slug, inv, store)

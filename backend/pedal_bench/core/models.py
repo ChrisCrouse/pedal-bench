@@ -14,8 +14,6 @@ from typing import Any, Literal, Optional
 Status = Literal["planned", "ordered", "building", "finishing", "done"]
 BuildPhase = Literal["pcb", "drill", "finish", "wiring", "test"]
 Side = Literal["A", "B", "C", "D", "E"]
-Tracking = Literal["per_value", "bucket"]
-BucketLevel = Literal["plenty", "low", "out"]
 
 VALID_STATUS: tuple[Status, ...] = (
     "planned", "ordered", "building", "finishing", "done",
@@ -257,6 +255,9 @@ class Project:
     # surface this on the Drill tab so users can order a custom-drilled
     # enclosure with one click instead of re-entering coordinates by hand.
     drill_tool_url: Optional[str] = None
+    # When False, this project is excluded from the global shopping list.
+    # Lets Chris stash future-build ideas without them inflating shortages.
+    active: bool = True
 
     def touch(self) -> None:
         self.updated_at = now_iso()
@@ -275,6 +276,7 @@ class Project:
             "refdes_map": {k: list(v) for k, v in self.refdes_map.items()},
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "active": self.active,
         }
         if self.drill_tool_url is not None:
             d["drill_tool_url"] = self.drill_tool_url
@@ -306,64 +308,110 @@ class Project:
             created_at=d.get("created_at", now_iso()),
             updated_at=d.get("updated_at", now_iso()),
             drill_tool_url=d.get("drill_tool_url"),
+            active=bool(d.get("active", True)),
         )
+
+
+def inventory_key(kind: str, value_norm: str) -> str:
+    """Canonical join key — must match how BOM rows are classified."""
+    return f"{kind}::{value_norm}"
 
 
 @dataclass
 class InventoryItem:
-    """A single line in the global inventory.
+    """A single physical-stock entry in the global inventory.
 
-    `key` uniquely identifies the part. Suggested format:
-      - per_value: "ic:OPA2134PA", "resistor:1/4W:10k", "cap:film:100n:7.2x2.5"
-      - bucket:   "bucket:resistor:1/4W", "bucket:cap:film:small"
-
-    `on_hand` is an int for per_value tracking, or a BucketLevel string
-    for bucket tracking. Type is narrowed by the `tracking` field.
+    Identity is `(kind, value_norm)`, encoded as `key = "<kind>::<value_norm>"`.
+    Reservations are integer holds tied to a project slug — `available` is
+    `on_hand - sum(reservations.values())`. Reservations are always manual:
+    the user clicks "reserve for this build" and later "consume" to draw down.
     """
 
     key: str
-    tracking: Tracking
-    on_hand: int | BucketLevel
+    kind: str
+    value_norm: str
+    on_hand: int
+    reservations: dict[str, int] = field(default_factory=dict)
+    display_value: str = ""
     supplier: Optional[str] = None
     unit_cost_usd: Optional[float] = None
+    notes: str = ""
 
     def __post_init__(self) -> None:
-        if self.tracking == "per_value":
-            if not isinstance(self.on_hand, int):
+        # on_hand may be negative — see solder_consumption.apply_solder_delta
+        # for the case where the bench tab pulls more parts than were tracked.
+        # A negative value means "the database thinks you've used N more than
+        # you logged" and serves as a visible deficit until you restock.
+        if not isinstance(self.on_hand, int):
+            raise ValueError(f"on_hand must be an int, got {type(self.on_hand).__name__}")
+        for slug, qty in self.reservations.items():
+            if not isinstance(qty, int) or qty < 0:
                 raise ValueError(
-                    f"per_value tracking requires int on_hand, got {type(self.on_hand).__name__}"
+                    f"reservation for {slug!r} must be non-negative int, got {qty!r}"
                 )
-            if self.on_hand < 0:
-                raise ValueError(f"on_hand cannot be negative, got {self.on_hand}")
-        elif self.tracking == "bucket":
-            if self.on_hand not in ("plenty", "low", "out"):
-                raise ValueError(
-                    f"bucket tracking requires on_hand in "
-                    f"('plenty','low','out'), got {self.on_hand!r}"
-                )
-        else:
-            raise ValueError(f"tracking must be 'per_value' or 'bucket', got {self.tracking!r}")
+
+    @property
+    def reserved_total(self) -> int:
+        return sum(self.reservations.values())
+
+    @property
+    def available(self) -> int:
+        return max(0, self.on_hand - self.reserved_total)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "key": self.key,
-            "tracking": self.tracking,
+            "kind": self.kind,
+            "value_norm": self.value_norm,
             "on_hand": self.on_hand,
+            "reservations": dict(self.reservations),
         }
+        if self.display_value:
+            d["display_value"] = self.display_value
         if self.supplier is not None:
             d["supplier"] = self.supplier
         if self.unit_cost_usd is not None:
             d["unit_cost_usd"] = self.unit_cost_usd
+        if self.notes:
+            d["notes"] = self.notes
         return d
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "InventoryItem":
+        # Migration: old records had `tracking` ("per_value" or "bucket") and
+        # could store on_hand as a string ("plenty"/"low"/"out"). Drop the
+        # mode and coerce non-int on_hand to 0 so legacy bucket items become
+        # editable rather than crashing the load.
+        raw_on_hand = d.get("on_hand", 0)
+        on_hand = raw_on_hand if isinstance(raw_on_hand, int) else 0
+        notes = d.get("notes", "")
+        if not isinstance(raw_on_hand, int):
+            note_msg = f"(migrated from bucket level {raw_on_hand!r})"
+            notes = f"{notes} {note_msg}".strip()
+
+        key = d["key"]
+        kind = d.get("kind", "")
+        value_norm = d.get("value_norm", "")
+        # Migration: derive kind/value_norm from the legacy key format
+        # ("kind:subtype:value", or just "kind:value"). We take the first
+        # segment as kind and the last as value_norm. Imperfect but the user
+        # can fix any oddballs in the UI; better than dropping data.
+        if not kind or not value_norm:
+            parts = key.split("::") if "::" in key else key.split(":")
+            if len(parts) >= 2:
+                kind = kind or parts[0]
+                value_norm = value_norm or parts[-1]
+
         return cls(
-            key=d["key"],
-            tracking=d["tracking"],
-            on_hand=d["on_hand"],
+            key=key,
+            kind=kind,
+            value_norm=value_norm,
+            on_hand=on_hand,
+            reservations={k: int(v) for k, v in (d.get("reservations") or {}).items()},
+            display_value=d.get("display_value", ""),
             supplier=d.get("supplier"),
             unit_cost_usd=d.get("unit_cost_usd"),
+            notes=notes,
         )
 
 

@@ -14,7 +14,6 @@ from pydantic import BaseModel, ConfigDict, Field
 Status = Literal["planned", "ordered", "building", "finishing", "done"]
 BuildPhase = Literal["pcb", "drill", "finish", "wiring", "test"]
 Side = Literal["A", "B", "C", "D", "E"]
-Tracking = Literal["per_value", "bucket"]
 IconKind = Literal[
     "pot",
     "chicken-head",
@@ -90,6 +89,7 @@ class ProjectOut(BaseModel):
     created_at: str
     updated_at: str
     drill_tool_url: str | None = None
+    active: bool = True
 
 
 class ProjectSummary(BaseModel):
@@ -110,6 +110,7 @@ class ProjectUpdate(BaseModel):
     status: Status | None = None
     enclosure: str | None = None
     notes: str | None = None
+    active: bool | None = None
 
 
 class HolesReplace(BaseModel):
@@ -118,6 +119,19 @@ class HolesReplace(BaseModel):
 
 class TaydaParseIn(BaseModel):
     text: str = Field(min_length=1)
+
+
+TemplateMode = Literal["pilot", "mark", "full"]
+
+
+class STLExportIn(BaseModel):
+    """Optional STL export options. All fields default to sensible values
+    so existing clients can POST an empty body.
+    """
+
+    template_mode: TemplateMode = "pilot"
+    pilot_diameter_mm: float = Field(default=3.0, gt=0, le=10.0)
+    show_final_size_ring: bool = True
 
 
 class STLExportOut(BaseModel):
@@ -132,3 +146,88 @@ class PhotoOut(BaseModel):
     uploaded_at: str
     caption: str = ""
     size_bytes: int
+
+
+class InventoryItemIn(BaseModel):
+    """Body for creating or updating a single owned-stock entry.
+
+    `kind` and `value` together identify the part. The server normalizes
+    `value` (e.g. "100K Ohm" → "100k") before storing — clients can send
+    the raw string from the UI.
+    """
+
+    kind: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+    on_hand: int = Field(ge=0)
+    display_value: str = ""
+    supplier: str | None = None
+    unit_cost_usd: float | None = Field(default=None, ge=0)
+    notes: str = ""
+
+
+class InventoryItemPatch(BaseModel):
+    on_hand: int | None = Field(default=None, ge=0)
+    display_value: str | None = None
+    supplier: str | None = None
+    unit_cost_usd: float | None = Field(default=None, ge=0)
+    notes: str | None = None
+
+
+class InventoryItemOut(BaseModel):
+    key: str
+    kind: str
+    value_norm: str
+    value_magnitude: float | None = None
+    display_value: str
+    on_hand: int
+    reservations: dict[str, int]
+    reserved_total: int
+    available: int
+    supplier: str | None = None
+    unit_cost_usd: float | None = None
+    notes: str = ""
+
+
+class ReservationIn(BaseModel):
+    slug: str = Field(min_length=1)
+    qty: int = Field(ge=0)
+
+
+class ShortageRowOut(BaseModel):
+    kind: str
+    value_norm: str
+    value_magnitude: float | None = None
+    display_value: str
+    type_hint: str
+    needed: int
+    on_hand: int
+    reserved_for_others: int
+    reserved_for_self: int
+    available: int
+    shortfall: int
+    unit_cost_usd: float | None = None
+    supplier: str | None = None
+    needed_by: list[str]
+
+
+class ShortageOut(BaseModel):
+    rows: list[ShortageRowOut]
+    estimated_total_cost_usd: float | None = None
+
+
+class ConsumeReservationsOut(BaseModel):
+    consumed: list[tuple[str, int]]
+
+
+class ProgressUpdateOut(BaseModel):
+    """Response from PUT /projects/{slug}/progress.
+
+    Carries the canonical progress plus the inventory side-effects so the
+    UI can surface "two parts came off stock" or "10k stock was 0" hints
+    without a follow-up fetch.
+    """
+
+    progress: BuildProgressIO
+    consumed: list[tuple[str, int]] = []
+    restored: list[tuple[str, int]] = []
+    warnings: list[str] = []

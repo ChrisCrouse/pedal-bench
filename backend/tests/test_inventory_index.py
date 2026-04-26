@@ -10,6 +10,7 @@ from pedal_bench.core.inventory_index import (
     InventoryIndex,
     classify,
     normalize_value,
+    value_magnitude,
 )
 from pedal_bench.core.models import BOMItem, Project
 from pedal_bench.core.project_store import ProjectStore
@@ -169,3 +170,41 @@ def test_refresh_picks_up_new_project(
     parts = idx.part_totals(kind_filter="resistor")
     by_norm = {p.value_norm: p for p in parts}
     assert by_norm["10k"].total_qty == 4
+
+
+# --- value_magnitude --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raw, kind, expected",
+    [
+        ("10k",   "resistor", 10_000.0),
+        ("1.2k",  "resistor", 1_200.0),
+        ("100k",  "resistor", 100_000.0),
+        ("1k",    "resistor", 1_000.0),
+        ("10M",   "resistor", 10_000_000.0),
+        ("2.2M",  "resistor", 2_200_000.0),
+        ("470",   "resistor", 470.0),
+        ("10R",   "resistor", 10.0),
+        ("100n",  "film-cap", 100e-9),
+        ("10u",   "electrolytic", 10e-6),
+        ("4u7",   "electrolytic", 4.7e-6),
+        ("2k2",   "resistor", 2_200.0),
+        ("",      "resistor", None),
+        ("TL072", "ic", None),       # IC part numbers don't get magnitudes
+        ("2N3904","transistor", None),
+    ],
+)
+def test_value_magnitude(raw: str, kind: str, expected: float | None) -> None:
+    got = value_magnitude(raw, kind)
+    if expected is None:
+        assert got is None
+    else:
+        assert got == pytest.approx(expected)
+
+
+def test_value_magnitude_sort_order() -> None:
+    """Real-world resistor-bin values must order numerically."""
+    raws = ["1.2k", "1.5k", "100k", "10k", "10M", "150k", "1k", "1M", "47k", "4.7k"]
+    sorted_by_mag = sorted(raws, key=lambda r: value_magnitude(r, "resistor") or 0)
+    assert sorted_by_mag == ["1k", "1.2k", "1.5k", "4.7k", "10k", "47k", "100k", "150k", "1M", "10M"]

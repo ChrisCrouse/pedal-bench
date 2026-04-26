@@ -103,6 +103,8 @@ export interface Project {
   updated_at: string;
   /** Tayda Manufacturing Center drill-template deep link captured at import. */
   drill_tool_url?: string | null;
+  /** When false, this project is excluded from the global shopping list. */
+  active: boolean;
 }
 
 export interface ProjectSummary {
@@ -117,6 +119,14 @@ export interface STLExport {
   side: Side;
   path: string;
   size_bytes: number;
+}
+
+export type STLTemplateMode = "pilot" | "mark" | "full";
+
+export interface STLExportOptions {
+  template_mode?: STLTemplateMode;
+  pilot_diameter_mm?: number;
+  show_final_size_ring?: boolean;
 }
 
 export interface Photo {
@@ -225,6 +235,7 @@ export interface InventoryStats {
 export interface InventoryPart {
   kind: string;
   value_norm: string;
+  value_magnitude: number | null;
   display_value: string;
   total_qty: number;
   project_count: number;
@@ -236,6 +247,63 @@ export interface InventoryProjectHit {
   name: string;
   status: Status;
   quantity: number;
+}
+
+export interface InventoryItem {
+  key: string;
+  kind: string;
+  value_norm: string;
+  /** Numeric magnitude of value_norm (e.g. "10k" → 10000). Null for ICs and
+   *  anything that doesn't start with a number. Used for sort ordering. */
+  value_magnitude: number | null;
+  display_value: string;
+  on_hand: number;
+  reservations: Record<string, number>;
+  reserved_total: number;
+  available: number;
+  supplier: string | null;
+  unit_cost_usd: number | null;
+  notes: string;
+}
+
+export interface InventoryItemInput {
+  kind: string;
+  value: string;
+  on_hand: number;
+  display_value?: string;
+  supplier?: string | null;
+  unit_cost_usd?: number | null;
+  notes?: string;
+}
+
+export interface InventoryItemPatch {
+  on_hand?: number;
+  display_value?: string;
+  supplier?: string | null;
+  unit_cost_usd?: number | null;
+  notes?: string;
+}
+
+export interface ShortageRow {
+  kind: string;
+  value_norm: string;
+  value_magnitude: number | null;
+  display_value: string;
+  type_hint: string;
+  needed: number;
+  on_hand: number;
+  reserved_for_others: number;
+  reserved_for_self: number;
+  available: number;
+  shortfall: number;
+  unit_cost_usd: number | null;
+  supplier: string | null;
+  needed_by: string[];
+}
+
+export interface Shortage {
+  rows: ShortageRow[];
+  estimated_total_cost_usd: number | null;
 }
 
 export const api = {
@@ -258,6 +326,38 @@ export const api = {
       request<{ projects: InventoryProjectHit[] }>(
         `/inventory/parts/${encodeURIComponent(kind)}/${encodeURIComponent(valueNorm)}/projects`,
       ),
+    items: {
+      list: (kind?: string, search?: string) => {
+        const qs = new URLSearchParams();
+        if (kind) qs.set("kind", kind);
+        if (search) qs.set("search", search);
+        const q = qs.toString();
+        return request<InventoryItem[]>(
+          `/inventory/items${q ? `?${q}` : ""}`,
+        );
+      },
+      upsert: (payload: InventoryItemInput) =>
+        request<InventoryItem>("/inventory/items", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+      patch: (key: string, payload: InventoryItemPatch) =>
+        request<InventoryItem>(
+          `/inventory/items/${encodeURIComponent(key)}`,
+          { method: "PATCH", body: JSON.stringify(payload) },
+        ),
+      delete: (key: string) =>
+        request<void>(
+          `/inventory/items/${encodeURIComponent(key)}`,
+          { method: "DELETE" },
+        ),
+      reserve: (key: string, slug: string, qty: number) =>
+        request<InventoryItem>(
+          `/inventory/items/${encodeURIComponent(key)}/reserve`,
+          { method: "POST", body: JSON.stringify({ slug, qty }) },
+        ),
+    },
+    shortage: () => request<Shortage>("/inventory/shortage"),
   },
   pdf: {
     extract: (file: File) => uploadPdf<PDFExtractOut>("/pdf/extract", file),
@@ -301,7 +401,7 @@ export const api = {
       }),
     update: (
       slug: string,
-      payload: Partial<Pick<Project, "name" | "status" | "enclosure" | "notes">>,
+      payload: Partial<Pick<Project, "name" | "status" | "enclosure" | "notes" | "active">>,
     ) =>
       request<Project>(`/projects/${encodeURIComponent(slug)}`, {
         method: "PATCH",
@@ -314,9 +414,10 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ holes }),
       }),
-    exportSTLs: (slug: string) =>
+    exportSTLs: (slug: string, options?: STLExportOptions) =>
       request<STLExport[]>(`/projects/${encodeURIComponent(slug)}/stl/export`, {
         method: "POST",
+        body: JSON.stringify(options ?? {}),
       }),
     extractHoles: (slug: string) =>
       request<Hole[]>(`/projects/${encodeURIComponent(slug)}/extract-holes`, {
@@ -331,6 +432,13 @@ export const api = {
       ),
     pcbLayoutImageUrl: (slug: string) =>
       `/api/v1/projects/${encodeURIComponent(slug)}/pcb-layout.png`,
+    shortage: (slug: string) =>
+      request<Shortage>(`/projects/${encodeURIComponent(slug)}/shortage`),
+    consumeReservations: (slug: string) =>
+      request<{ consumed: [string, number][] }>(
+        `/projects/${encodeURIComponent(slug)}/consume-reservations`,
+        { method: "POST" },
+      ),
   },
   tayda: {
     parse: (text: string) =>

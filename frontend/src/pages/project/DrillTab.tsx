@@ -7,6 +7,7 @@ import {
   type IconKind,
   type Project,
   type STLExport,
+  type STLTemplateMode,
 } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -62,6 +63,8 @@ export function DrillTab() {
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [mirrorState, setMirrorState] = useState<MirrorState>(NO_MIRROR);
   const [defaultIcon, setDefaultIcon] = useState<IconKind | null>("pot");
+  const [stlMode, setStlMode] = useState<STLTemplateMode>("pilot");
+  const [stlShowRing, setStlShowRing] = useState(true);
 
   // Detect dirty state by comparing current holes against the server copy.
   const serverKey = useMemo(() => JSON.stringify(project.holes), [project.holes]);
@@ -147,7 +150,11 @@ export function DrillTab() {
   });
 
   const exportMutation = useMutation({
-    mutationFn: () => api.projects.exportSTLs(slug),
+    mutationFn: () =>
+      api.projects.exportSTLs(slug, {
+        template_mode: stlMode,
+        show_final_size_ring: stlShowRing,
+      }),
     onSuccess: (results) => setExportResults(results),
   });
 
@@ -431,13 +438,23 @@ export function DrillTab() {
           >
             {saveMutation.isPending ? "Saving…" : dirty ? "Save" : "Saved"}
           </Button>
+          <STLExportControls
+            mode={stlMode}
+            onModeChange={setStlMode}
+            showRing={stlShowRing}
+            onShowRingChange={setStlShowRing}
+          />
           <Button
             variant="primary"
             disabled={holes.length === 0 || dirty || exportMutation.isPending}
             title={
               dirty
                 ? "Save first — export uses the server-side hole list"
-                : "Generate STL drill guides per face"
+                : stlMode === "pilot"
+                  ? "Generate STL drill guides (pilot holes for center-punching)"
+                  : stlMode === "mark"
+                    ? "Generate STL drill guides (countersunk dimples only — no through-holes)"
+                    : "Generate STL drill guides (full-size through-holes)"
             }
             onClick={() => exportMutation.mutate()}
           >
@@ -693,4 +710,117 @@ function ExportResultsOverlay({
 
 function round1(v: number) {
   return Math.round(v * 10) / 10;
+}
+
+function STLExportControls({
+  mode,
+  onModeChange,
+  showRing,
+  onShowRingChange,
+}: {
+  mode: STLTemplateMode;
+  onModeChange: (m: STLTemplateMode) => void;
+  showRing: boolean;
+  onShowRingChange: (v: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label =
+    mode === "pilot" ? "Pilot" : mode === "mark" ? "Mark only" : "Full size";
+  return (
+    <div className="relative">
+      <Button
+        variant="ghost"
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="STL export options"
+      >
+        STL: {label} ▾
+      </Button>
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-30"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute right-0 top-full z-40 mt-1 w-72 rounded-md border border-zinc-200 bg-white p-3 text-sm shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Template style
+            </div>
+            <div className="space-y-1">
+              <ModeChoice
+                value="pilot"
+                checked={mode === "pilot"}
+                onChange={onModeChange}
+                title="Pilot (recommended)"
+                detail="Small ~3 mm through-hole + countersink for a center punch. Reusable; works with any drill."
+              />
+              <ModeChoice
+                value="mark"
+                checked={mode === "mark"}
+                onChange={onModeChange}
+                title="Mark only"
+                detail="Countersunk dimple, no through-hole. Strongest / most reusable."
+              />
+              <ModeChoice
+                value="full"
+                checked={mode === "full"}
+                onChange={onModeChange}
+                title="Full size"
+                detail="Through-hole at the component's final diameter. A real-size bit will chew the print on first use — use only for marking or rigid-material prints."
+              />
+            </div>
+            {mode !== "full" && (
+              <label className="mt-3 flex items-start gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+                <input
+                  type="checkbox"
+                  checked={showRing}
+                  onChange={(e) => onShowRingChange(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">Emboss final-size ring</span>
+                  <span className="block text-xs text-zinc-500">
+                    Debossed circle on the top surface at each hole's final
+                    diameter — visual sanity check for component spacing.
+                  </span>
+                </span>
+              </label>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ModeChoice({
+  value,
+  checked,
+  onChange,
+  title,
+  detail,
+}: {
+  value: STLTemplateMode;
+  checked: boolean;
+  onChange: (m: STLTemplateMode) => void;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 rounded p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+      <input
+        type="radio"
+        name="stl-template-mode"
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        className="mt-1"
+      />
+      <span>
+        <span className="font-medium">{title}</span>
+        <span className="block text-xs text-zinc-500">{detail}</span>
+      </span>
+    </label>
+  );
 }

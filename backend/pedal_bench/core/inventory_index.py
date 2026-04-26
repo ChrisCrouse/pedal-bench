@@ -150,6 +150,63 @@ def normalize_value(raw: str, kind: str) -> str:
     return v
 
 
+# SI suffix → multiplier. Case-sensitive: 'M' is mega, 'm' is milli. The
+# expected use is resistors and capacitors, which are the only kinds where
+# numeric magnitude is meaningful for sorting.
+_SI: dict[str, float] = {
+    "p": 1e-12,
+    "n": 1e-9,
+    "u": 1e-6,
+    "m": 1e-3,
+    "r": 1.0,    # resistor "ohms" marker — "10R" == 10Ω
+    "k": 1e3,
+    "M": 1e6,
+    "meg": 1e6,
+}
+
+_MAG_RE = re.compile(r"^([\d.]+)\s*(meg|[pnumkrRM])?", re.IGNORECASE)
+_MAG_EMBEDDED_RE = re.compile(r"^(\d+)([pnumkrRM]|meg)(\d+)$", re.IGNORECASE)
+
+
+def value_magnitude(raw: str, kind: str) -> float | None:
+    """Parse a passive value like '10k', '1.2k', '100n', '4u7' into a number.
+
+    Returns None for IC/transistor/diode part numbers, empty input, or
+    anything that doesn't start with a digit. Used so sort orders by actual
+    magnitude (1k=1000 < 100k=100000 < 1M=1e6) instead of lexicographic
+    "100k" < "10k".
+    """
+    if not raw or kind in ("ic", "transistor", "diode"):
+        return None
+    s = raw.strip().replace("µ", "u")
+
+    # "4u7" / "2k2" notation: digit, suffix, digit → digit.digit × suffix.
+    embedded = _MAG_EMBEDDED_RE.match(s)
+    if embedded:
+        whole, suffix, frac = embedded.group(1), embedded.group(2), embedded.group(3)
+        # Case matters: 'M' is mega, 'm' is milli.
+        mult = _SI.get(suffix) if suffix in _SI else _SI.get(suffix.lower())
+        if mult is None:
+            return None
+        try:
+            return float(f"{whole}.{frac}") * mult
+        except ValueError:
+            return None
+
+    m = _MAG_RE.match(s)
+    if not m:
+        return None
+    try:
+        num = float(m.group(1))
+    except ValueError:
+        return None
+    suffix = m.group(2)
+    if not suffix:
+        return num
+    mult = _SI.get(suffix) if suffix in _SI else _SI.get(suffix.lower())
+    return num * (mult if mult is not None else 1.0)
+
+
 @dataclass
 class PartTotal:
     """One row of a 'how many X across all projects' query."""
