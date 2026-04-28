@@ -95,7 +95,7 @@ def test_extract_build_package_helios_fixture() -> None:
     assert pkg.title == "Helios"
     assert pkg.enclosure == "125B"
     assert pkg.drill_template_page_index == 7
-    assert pkg.pcb_layout_page_index == 8
+    assert pkg.pcb_layout_page_index == 0
     assert pkg.wiring_page_index == 9
     assert len(pkg.bom) == 51
     assert len(pkg.holes) == 10

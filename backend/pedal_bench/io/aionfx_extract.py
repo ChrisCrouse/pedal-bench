@@ -53,7 +53,10 @@ def extract_build_package(
     pkg.drill_template_page_index = _find_exact_heading_page(page_texts, "DRILL TEMPLATE")
     pkg.wiring_page_index = _find_exact_heading_page(page_texts, "WIRING DIAGRAM")
     pkg.schematic_page_index = _find_exact_heading_page(page_texts, "SCHEMATIC")
-    pkg.pcb_layout_page_index = _find_exact_heading_page(page_texts, "ENCLOSURE LAYOUT")
+    # Aion docs place the PCB population artwork on the cover page.
+    # "ENCLOSURE LAYOUT" is for drilling/jack placement and is the wrong
+    # image for BOM click-to-tag.
+    pkg.pcb_layout_page_index = 0
 
     try:
         pkg.bom = extract_bom(pdf_path)
