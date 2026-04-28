@@ -62,12 +62,12 @@ def test_extract_bom_aphelion_fixture() -> None:
     by_loc = {item.location: item for item in items}
 
     assert len(items) == 42
-    assert by_loc["R1"].value == "10k 10k"
+    assert by_loc["R1"].value == "10k"
     assert by_loc["RPD"].type == "Metal film resistor, 1/4W"
     assert "Input pulldown resistor." in by_loc["RPD"].notes
-    assert by_loc["D2"].value == "Ge Ge"
+    assert by_loc["D2"].value == "Ge"
     assert by_loc["IC1"].polarity_sensitive is True
-    assert "SPDT cntr off SPDT cntr" in by_loc["TREBLE"].value
+    assert by_loc["TREBLE"].value == "SPDT cntr off"
     assert "Toggle switch, SPDT on-off-on" in by_loc["TREBLE"].type
 
 

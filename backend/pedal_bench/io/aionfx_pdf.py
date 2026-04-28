@@ -52,6 +52,7 @@ def _parse_parts_list_words(words: list[dict[str, Any]]) -> list[BOMItem]:
     if header is None:
         return []
     header_top, col_x = header
+    use_first_value_only = _header_has_multiple_value_columns(words, header_top)
     rows = _rows_from_words(
         [
             w
@@ -68,7 +69,7 @@ def _parse_parts_list_words(words: list[dict[str, Any]]) -> list[BOMItem]:
         value = _clean(cells["value"])
         type_ = _clean(cells["type"])
         notes = _clean(cells["notes"])
-        part, value = _normalize_part_value_cells(part, value)
+        part, value = _normalize_part_value_cells(part, value, use_first_value_only)
 
         if not part and not value and not type_ and not notes:
             continue
@@ -101,15 +102,32 @@ def _parse_parts_list_words(words: list[dict[str, Any]]) -> list[BOMItem]:
 def _find_header(words: list[dict[str, Any]]) -> tuple[float, dict[str, float]] | None:
     rows = _rows_from_words(words)
     for top, row_words in rows:
-        by_text = {str(w.get("text", "")).upper(): w for w in row_words}
-        if not all(cell in by_text for cell in _HEADER_CELLS):
+        part_word = None
+        type_word = None
+        notes_word = None
+        value_words: list[dict[str, Any]] = []
+        for word in row_words:
+            text = str(word.get("text", "")).upper()
+            if text == "PART":
+                part_word = word
+            elif text == "TYPE":
+                type_word = word
+            elif text == "NOTES":
+                notes_word = word
+            elif text.startswith("VALUE"):
+                value_words.append(word)
+        if part_word is None or type_word is None or notes_word is None or not value_words:
             continue
-        return top, {
-            "part": float(by_text["PART"]["x0"]),
-            "value": float(by_text["VALUE"]["x0"]),
-            "type": float(by_text["TYPE"]["x0"]),
-            "notes": float(by_text["NOTES"]["x0"]),
+        value_words.sort(key=lambda w: float(w["x0"]))
+        col_x = {
+            "part": float(part_word["x0"]),
+            "value": float(value_words[0]["x0"]),
+            "type": float(type_word["x0"]),
+            "notes": float(notes_word["x0"]),
         }
+        if len(value_words) >= 2:
+            col_x["value2"] = float(value_words[1]["x0"])
+        return top, col_x
     return None
 
 
@@ -125,6 +143,34 @@ def _rows_from_words(words: list[dict[str, Any]]) -> list[tuple[float, list[dict
 
 
 def _split_row(row_words: list[dict[str, Any]], col_x: dict[str, float]) -> dict[str, str]:
+    if "value2" in col_x:
+        value_start = col_x["value"] - 2.0
+        value2_start = col_x["value2"] - 2.0
+        type_start = col_x["type"] - 2.0
+        notes_start = col_x["notes"] - 5.0
+
+        cells: dict[str, list[str]] = {
+            "part": [],
+            "value": [],
+            "value2": [],
+            "type": [],
+            "notes": [],
+        }
+        for word in sorted(row_words, key=lambda w: float(w["x0"])):
+            x0 = float(word["x0"])
+            text = str(word.get("text", ""))
+            if x0 < value_start:
+                cells["part"].append(text)
+            elif x0 < value2_start:
+                cells["value"].append(text)
+            elif x0 < type_start:
+                cells["value2"].append(text)
+            elif x0 < notes_start:
+                cells["type"].append(text)
+            else:
+                cells["notes"].append(text)
+        return {key: " ".join(value) for key, value in cells.items()}
+
     part_value_mid = (col_x["part"] + col_x["value"]) / 2
     value_type_mid = (col_x["value"] + col_x["type"]) / 2
     notes_start = col_x["notes"] - 5.0
@@ -160,7 +206,26 @@ def _looks_like_footer(*cells: str) -> bool:
     return any(joined.startswith(prefix) for prefix in _FOOTER_PREFIXES)
 
 
-def _normalize_part_value_cells(part: str, value: str) -> tuple[str, str]:
+def _header_has_multiple_value_columns(
+    words: list[dict[str, Any]],
+    header_top: float,
+) -> bool:
+    value_headers = 0
+    for word in words:
+        top = float(word.get("top", 0.0))
+        if abs(top - header_top) > 3.0:
+            continue
+        text = str(word.get("text", "")).upper()
+        if text.startswith("VALUE"):
+            value_headers += 1
+    return value_headers >= 2
+
+
+def _normalize_part_value_cells(
+    part: str,
+    value: str,
+    use_first_value_only: bool,
+) -> tuple[str, str]:
     """Repair rows where the first value token bleeds into the part column."""
     if _looks_like_refdes(part):
         return part, value
@@ -171,6 +236,8 @@ def _normalize_part_value_cells(part: str, value: str) -> tuple[str, str]:
     if not _looks_like_refdes(candidate_part):
         return part, value
     spilled_value = " ".join(tokens[1:])
+    if use_first_value_only:
+        return candidate_part, spilled_value
     merged_value = _clean(" ".join(x for x in (spilled_value, value) if x))
     return candidate_part, merged_value
 
