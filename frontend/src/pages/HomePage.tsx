@@ -45,7 +45,7 @@ export function HomePage() {
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Your builds</h1>
           <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-            Start a new pedal build. Drop a PedalPCB PDF or paste a build URL —
+            Start a new pedal build. Drop a PedalPCB or Aion FX PDF, or paste a build URL —
             we'll extract the BOM, enclosure, and title automatically.
           </p>
         </div>
@@ -69,7 +69,7 @@ export function HomePage() {
         >
           <Input
             type="url"
-            placeholder="Or paste a PedalPCB or Taydakits build URL"
+            placeholder="Or paste a PedalPCB, Aion FX, or Taydakits build URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             disabled={busy}
@@ -104,6 +104,13 @@ export function HomePage() {
               <code className="font-mono">pedalpcb.com/product/...</code>). BOM,
               enclosure, drill template, and wiring image are all imported
               automatically.
+            </div>
+            <div>
+              <span className="font-semibold text-zinc-700 dark:text-zinc-300">Aion FX</span>{" "}
+              — paste a project page URL (
+              <code className="font-mono">aionfx.com/project/...</code>) or direct
+              documentation PDF URL. PCB-only build docs import BOM, enclosure,
+              drill template, and wiring/layout pages automatically.
             </div>
             <div>
               <span className="font-semibold text-zinc-700 dark:text-zinc-300">Taydakits</span>{" "}

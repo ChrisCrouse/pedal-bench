@@ -89,6 +89,8 @@ class ProjectOut(BaseModel):
     created_at: str
     updated_at: str
     drill_tool_url: str | None = None
+    source_supplier: str | None = None
+    source_url: str | None = None
     active: bool = True
 
 

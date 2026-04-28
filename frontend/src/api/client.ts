@@ -103,6 +103,9 @@ export interface Project {
   updated_at: string;
   /** Tayda Manufacturing Center drill-template deep link captured at import. */
   drill_tool_url?: string | null;
+  /** Original source supplier and URL captured during import, when known. */
+  source_supplier?: string | null;
+  source_url?: string | null;
   /** When false, this project is excluded from the global shopping list. */
   active: boolean;
 }
@@ -202,6 +205,8 @@ export interface PDFExtractOut {
   /** Workflow hand-offs to surface after a successful import (e.g., drill-tool
    *  walkthrough for Taydakits). Distinct from warnings, which mean a problem. */
   next_steps?: string[];
+  source_supplier?: string | null;
+  source_url?: string | null;
 }
 
 async function uploadPdf<T>(path: string, file: File, fields: Record<string, string> = {}): Promise<T> {
