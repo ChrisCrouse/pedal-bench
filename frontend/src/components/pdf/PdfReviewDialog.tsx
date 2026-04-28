@@ -143,8 +143,7 @@ export function PdfReviewDialog({ source, preview, onClose }: Props) {
                 No BOM rows detected.
                 {aiAvailable === false && (
                   <div className="mt-1 text-xs">
-                    This PDF uses an older "Parts List" layout that needs AI
-                    to read.{" "}
+                    This document layout may need AI to read automatically.{" "}
                     <Link to="/settings" className="font-medium underline">
                       Set up an Anthropic key →
                     </Link>{" "}
