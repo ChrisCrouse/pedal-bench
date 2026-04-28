@@ -20,6 +20,7 @@ from pedal_bench.io.aionfx_pdf import extract_bom
 # Optional local fixture (not committed): drop an Aion FX build PDF here to
 # enable integration-style parser tests, matching the PedalPCB fixture pattern.
 HELIOS = Path(__file__).parent / "fixtures" / "helios_documentation.pdf"
+APHELION = Path(__file__).parent / "fixtures" / "aphelion_documentation.pdf"
 
 
 def test_aionfx_title_enclosure_and_page_roles_from_text() -> None:
@@ -53,6 +54,21 @@ def test_extract_bom_helios_fixture() -> None:
     assert "Leave empty" in by_loc["C3"].notes
     assert by_loc["IC1"].polarity_sensitive is True
     assert by_loc["ENC"].value == "125B"
+
+
+@pytest.mark.skipif(not APHELION.is_file(), reason="Aphelion fixture PDF not present in tests/fixtures")
+def test_extract_bom_aphelion_fixture() -> None:
+    items = extract_bom(APHELION)
+    by_loc = {item.location: item for item in items}
+
+    assert len(items) == 42
+    assert by_loc["R1"].value == "10k 10k"
+    assert by_loc["RPD"].type == "Metal film resistor, 1/4W"
+    assert "Input pulldown resistor." in by_loc["RPD"].notes
+    assert by_loc["D2"].value == "Ge Ge"
+    assert by_loc["IC1"].polarity_sensitive is True
+    assert "SPDT cntr off SPDT cntr" in by_loc["TREBLE"].value
+    assert "Toggle switch, SPDT on-off-on" in by_loc["TREBLE"].type
 
 
 @pytest.mark.skipif(not HELIOS.is_file(), reason="Helios fixture PDF not present in tests/fixtures")

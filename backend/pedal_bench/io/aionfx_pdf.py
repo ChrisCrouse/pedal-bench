@@ -68,6 +68,7 @@ def _parse_parts_list_words(words: list[dict[str, Any]]) -> list[BOMItem]:
         value = _clean(cells["value"])
         type_ = _clean(cells["type"])
         notes = _clean(cells["notes"])
+        part, value = _normalize_part_value_cells(part, value)
 
         if not part and not value and not type_ and not notes:
             continue
@@ -157,6 +158,21 @@ def _looks_like_refdes(value: str) -> bool:
 def _looks_like_footer(*cells: str) -> bool:
     joined = " ".join(cells).strip().upper()
     return any(joined.startswith(prefix) for prefix in _FOOTER_PREFIXES)
+
+
+def _normalize_part_value_cells(part: str, value: str) -> tuple[str, str]:
+    """Repair rows where the first value token bleeds into the part column."""
+    if _looks_like_refdes(part):
+        return part, value
+    tokens = part.split()
+    if len(tokens) < 2:
+        return part, value
+    candidate_part = tokens[0]
+    if not _looks_like_refdes(candidate_part):
+        return part, value
+    spilled_value = " ".join(tokens[1:])
+    merged_value = _clean(" ".join(x for x in (spilled_value, value) if x))
+    return candidate_part, merged_value
 
 
 __all__ = [
