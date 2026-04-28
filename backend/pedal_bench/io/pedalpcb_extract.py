@@ -13,36 +13,14 @@ in the gaps manually on the review screen.
 
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from pedal_bench.core.models import BOMItem, Enclosure, Hole
+from pedal_bench.core.models import Enclosure
+from pedal_bench.io.build_import import ExtractedBuildPackage
 from pedal_bench.io.drill_template_extract import extract_drill_holes
 from pedal_bench.io.pedalpcb_pdf import BOMParseError, extract_bom
-
-
-@dataclass
-class ExtractedBuildPackage:
-    title: str | None = None
-    enclosure: str | None = None
-    bom: list[BOMItem] = field(default_factory=list)
-    holes: list[Hole] = field(default_factory=list)
-    wiring_page_index: int | None = None
-    drill_template_page_index: int | None = None
-    # Things that *went wrong* during extraction — rendered as amber
-    # "extraction warnings" in the review dialog.
-    warnings: list[str] = field(default_factory=list)
-    # Things the user should do *next* even though extraction succeeded —
-    # workflow hand-offs like "drill coords aren't auto-imported, here's
-    # how to bring them in." Rendered as informational blue, not amber.
-    next_steps: list[str] = field(default_factory=list)
-    # Tayda Manufacturing Center drill-template deep link, when the source
-    # product/instructions page advertises one. Persists onto the project
-    # so the Drill tab can offer a one-click "Order drilled enclosure".
-    drill_tool_url: str | None = None
 
 
 # Known enclosure keys in the shipped catalog, plus common aliases the
@@ -91,7 +69,7 @@ def extract_build_package(
     if not pdf_path.is_file():
         raise FileNotFoundError(pdf_path)
 
-    pkg = ExtractedBuildPackage()
+    pkg = ExtractedBuildPackage(source_supplier="pedalpcb", pcb_layout_page_index=0)
 
     with pdfplumber.open(pdf_path) as pdf:
         # Collect per-page text for title / enclosure / page-role detection.
