@@ -41,3 +41,6 @@ projectnotes.txt
 
 # SQLite index (rebuilt from projects/ JSON on demand)
 pedal_bench_index.sqlite
+
+# Test PDFs must be downloaded manually because copyright
+backend/tests/fixtures/*pdf
