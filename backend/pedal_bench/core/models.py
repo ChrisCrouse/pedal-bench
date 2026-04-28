@@ -36,6 +36,7 @@ _POLARITY_MARKERS = (
     "transistor",
     "op-amp",
     "opamp",
+    "operational amplifier",
     "led",
     "tantalum",
     "integrated circuit",
@@ -255,6 +256,10 @@ class Project:
     # surface this on the Drill tab so users can order a custom-drilled
     # enclosure with one click instead of re-entering coordinates by hand.
     drill_tool_url: Optional[str] = None
+    # Source identity captured at import time. Optional for backwards
+    # compatibility with existing project JSON files.
+    source_supplier: Optional[str] = None
+    source_url: Optional[str] = None
     # When False, this project is excluded from the global shopping list.
     # Lets Chris stash future-build ideas without them inflating shortages.
     active: bool = True
@@ -280,6 +285,10 @@ class Project:
         }
         if self.drill_tool_url is not None:
             d["drill_tool_url"] = self.drill_tool_url
+        if self.source_supplier is not None:
+            d["source_supplier"] = self.source_supplier
+        if self.source_url is not None:
+            d["source_url"] = self.source_url
         return d
 
     @classmethod
@@ -308,6 +317,8 @@ class Project:
             created_at=d.get("created_at", now_iso()),
             updated_at=d.get("updated_at", now_iso()),
             drill_tool_url=d.get("drill_tool_url"),
+            source_supplier=d.get("source_supplier"),
+            source_url=d.get("source_url"),
             active=bool(d.get("active", True)),
         )
 
