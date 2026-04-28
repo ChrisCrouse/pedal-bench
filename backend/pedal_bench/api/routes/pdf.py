@@ -333,14 +333,25 @@ async def attach_pdf_to_existing(
     dest_pdf = pdir / "source.pdf"
     dest_pdf.write_bytes(pdf_bytes)
     project.source_pdf = "source.pdf"
-    pkg_preview = _extract_pdf_build_package(dest_pdf)
-    project.source_supplier = pkg_preview.source_supplier
-    project.source_url = pkg_preview.source_url
+    pkg_preview: ExtractedBuildPackage | None = None
+    try:
+        pkg_preview = _extract_pdf_build_package(dest_pdf)
+        project.source_supplier = pkg_preview.source_supplier
+        project.source_url = pkg_preview.source_url
+    except Exception:
+        # Keep attach flow resilient even if supplier-specific parsers fail.
+        # Users can still keep the PDF and retry re-extraction later.
+        project.source_supplier = None
+        project.source_url = None
 
     # Cache wiring diagram + PCB/layout pages when the supplier parser can identify them.
-    wiring_page = pkg_preview.wiring_page_index if pkg_preview.wiring_page_index is not None else 3
+    wiring_page = (
+        pkg_preview.wiring_page_index if pkg_preview and pkg_preview.wiring_page_index is not None else 3
+    )
     _render_pdf_page_if_known(dest_pdf, wiring_page, pdir / "wiring.png")
-    pcb_page = pkg_preview.pcb_layout_page_index if pkg_preview.pcb_layout_page_index is not None else 0
+    pcb_page = (
+        pkg_preview.pcb_layout_page_index if pkg_preview and pkg_preview.pcb_layout_page_index is not None else 0
+    )
     _render_pdf_page_if_known(dest_pdf, pcb_page, pdir / "pcb_layout.png", dpi=180)
 
     # Try to extract drill holes using the project's enclosure spec.
@@ -348,7 +359,7 @@ async def attach_pdf_to_existing(
     try:
         extracted = (
             pkg_preview.holes
-            if pkg_preview.source_supplier == "aionfx"
+            if pkg_preview and pkg_preview.source_supplier == "aionfx"
             else extract_pedalpcb_drill_holes(dest_pdf, enclosure=encl)
         )
         if extracted:
@@ -359,7 +370,7 @@ async def attach_pdf_to_existing(
     # AI fallback for image-only or unusually laid-out drill templates.
     if not project.holes and encl is not None:
         try:
-            if pkg_preview.drill_template_page_index is not None:
+            if pkg_preview and pkg_preview.drill_template_page_index is not None:
                 ai_holes = extract_drill_holes_with_ai(
                     dest_pdf, pkg_preview.drill_template_page_index, encl,
                     api_key=api_key,

@@ -14,6 +14,7 @@ from typing import Any
 from pedal_bench.core.models import Enclosure, Hole, IconKind
 
 INCH_TO_MM = 25.4
+_FACE_COORD_TOL_MM = 2.5
 
 _COORD_VALUE_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?[,]?$")
 _DIAMETER_RE = re.compile(r"ø\s*(\d+)\s*/\s*(\d+)")
@@ -55,6 +56,7 @@ def extract_drill_holes(
 
     holes = _extract_face_a_holes(words)
     holes.extend(_infer_top_jack_holes(words))
+    holes = _apply_enclosure_transform_and_validation(holes, enclosure)
     holes = _dedupe(holes)
     return holes or None
 
@@ -271,6 +273,70 @@ def _infer_top_jack_holes(words: list[dict[str, Any]]) -> list[Hole]:
     ]
 
 
+def _apply_enclosure_transform_and_validation(
+    holes: list[Hole],
+    enclosure: Enclosure | None,
+) -> list[Hole]:
+    if enclosure is None:
+        return holes
+
+    normalized: list[Hole] = []
+    for hole in holes:
+        face = enclosure.faces.get(hole.side)
+        if face is None:
+            normalized.append(hole)
+            continue
+
+        x_mm = _normalize_axis_to_center(hole.x_mm, face.width_mm)
+        y_mm = _normalize_axis_to_center(hole.y_mm, face.height_mm)
+        if not _hole_fits_face(x_mm, y_mm, hole.diameter_mm, face.width_mm, face.height_mm):
+            continue
+
+        normalized.append(
+            Hole(
+                side=hole.side,
+                x_mm=round(x_mm, 2),
+                y_mm=round(y_mm, 2),
+                diameter_mm=hole.diameter_mm,
+                label=hole.label,
+                powder_coat_margin=hole.powder_coat_margin,
+                icon=hole.icon,
+            )
+        )
+
+    return normalized
+
+
+def _normalize_axis_to_center(value_mm: float, span_mm: float) -> float:
+    centered_limit = (span_mm / 2) + _FACE_COORD_TOL_MM
+    if -centered_limit <= value_mm <= centered_limit:
+        return value_mm
+
+    # Some source docs use edge-origin coordinates; recenter to the
+    # face midpoint so downstream consumers always receive center-origin mm.
+    edge_limit = span_mm + _FACE_COORD_TOL_MM
+    if -_FACE_COORD_TOL_MM <= value_mm <= edge_limit:
+        return value_mm - (span_mm / 2)
+
+    return value_mm
+
+
+def _hole_fits_face(
+    x_mm: float,
+    y_mm: float,
+    diameter_mm: float,
+    width_mm: float,
+    height_mm: float,
+) -> bool:
+    half_w = width_mm / 2
+    half_h = height_mm / 2
+    if abs(x_mm) > half_w + _FACE_COORD_TOL_MM:
+        return False
+    if abs(y_mm) > half_h + _FACE_COORD_TOL_MM:
+        return False
+    return 0.0 < diameter_mm <= min(width_mm, height_mm) + _FACE_COORD_TOL_MM
+
+
 def _dedupe(holes: list[Hole]) -> list[Hole]:
     out: list[Hole] = []
     for hole in holes:
@@ -284,4 +350,8 @@ def _dedupe(holes: list[Hole]) -> list[Hole]:
     return out
 
 
-__all__ = ["extract_drill_holes", "_diameter_mm"]
+__all__ = [
+    "extract_drill_holes",
+    "_apply_enclosure_transform_and_validation",
+    "_diameter_mm",
+]
