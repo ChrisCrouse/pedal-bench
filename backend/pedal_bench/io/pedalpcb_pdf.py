@@ -175,19 +175,40 @@ _SECTION_TYPES: dict[str, str] = {
     "TRIM POTS": "Trim pot",
     "TRIMPOTS": "Trim pot",
     "SWITCHES": "Switch",
+    "TOGGLE SWITCHES": "Switch",
+    "FOOTSWITCHES": "Switch",
+    "ROTARY SWITCHES": "Switch",
     "INDUCTORS": "Inductor",
     "RELAYS": "Relay",
+}
+
+# Sections whose refdes are ALL-CAPS names (DEPTH, FILTER, PV, RANGE, …)
+# rather than letter-prefix-digit (R1, C2, IC3). The orphan-value lookup
+# applies in any section, but the refdes pattern differs.
+_NAME_REFDES_SECTIONS = {
+    "POTENTIOMETERS",
+    "TRIM POTS",
+    "TRIMPOTS",
+    "SWITCHES",
+    "TOGGLE SWITCHES",
+    "FOOTSWITCHES",
+    "ROTARY SWITCHES",
 }
 
 # Refdes pattern for the electronic-component sections (R1, C100, D5, Q1,
 # IC1, etc.). One or two letters followed by digits.
 _REFDES_RE = re.compile(r"^[A-Z]{1,3}\d{1,4}$")
-# Bare-name refdes used in pot/switch sections (LOUDNESS, FILTER, ...).
-# Min 3 chars to avoid matching joiner words like "OR".
-_NAME_REFDES_RE = re.compile(r"^[A-Z][A-Z0-9_-]{2,20}$")
-# Joiner / boilerplate words that look like a refdes but aren't.
+# Bare-name refdes used in pot/switch sections (LOUDNESS, FILTER, PV, ...).
+# Down to 2 chars so 2-letter switch labels like PV (phase/vibrato) parse.
+# False positives from common short words are caught by _REFDES_BLOCKLIST.
+_NAME_REFDES_RE = re.compile(r"^[A-Z][A-Z0-9_-]{1,20}$")
+# Joiner / boilerplate words that look like a refdes but aren't. Lowercased
+# at lookup time. The 2-letter additions cover prepositions and connectors
+# that started slipping through after we relaxed _NAME_REFDES_RE.
 _REFDES_BLOCKLIST = {"OR", "AND", "SEE", "USE", "TO", "FOR", "THE", "IF",
-                     "VERSION", "BUILD", "NOTE", "NOTES"}
+                     "VERSION", "BUILD", "NOTE", "NOTES",
+                     "ON", "OFF", "IN", "OUT", "AT", "BY", "OF", "UP",
+                     "AS", "IS", "BE", "DO", "GO", "NO", "SO"}
 # Whole words that, if present in a value, indicate the line is prose
 # (a build note like "D1 and D2 orientation"), not a real component value.
 _VALUE_PROSE_WORDS = {"and", "are", "is", "the", "with", "see", "if", "or",
@@ -339,24 +360,27 @@ def _parse_column(
         if refdes.upper() in _REFDES_BLOCKLIST:
             continue
 
-        if current_section in ("POTENTIOMETERS", "TRIM POTS", "TRIMPOTS",
-                               "SWITCHES"):
-            if not _NAME_REFDES_RE.match(refdes):
-                continue
-            if not value:
-                # Pull a value from the closest segment to the right at
-                # matching y. Common in older PDFs that tab pot values into
-                # their own visual column.
-                value = _find_orphan_value(y_top, right_cols)
-                if not value:
-                    continue
-        else:
-            if not _REFDES_RE.match(refdes):
-                continue
-            if not value:
-                continue
-            if _looks_like_prose(value):
-                continue
+        # Pick the right refdes pattern for this section. Pot/switch
+        # sections use ALL-CAPS names (DEPTH, PV, …); everything else uses
+        # the standard letter-prefix-digit form (R1, C2, IC3, D100, …).
+        is_name_section = current_section in _NAME_REFDES_SECTIONS
+        refdes_re = _NAME_REFDES_RE if is_name_section else _REFDES_RE
+        if not refdes_re.match(refdes):
+            continue
+
+        # Refdes and value frequently land in different visual columns —
+        # the IC section in particular puts "IC1" at one x-position and
+        # "LM13700" at another, with a >25pt gap that makes them separate
+        # segments. Look right for the missing value at the same y. This
+        # used to apply only to pot/switch sections; extending it
+        # everywhere recovers ICs, diodes, and transistors that the older
+        # parser silently dropped.
+        if not value:
+            value = _find_orphan_value(y_top, right_cols)
+        if not value:
+            continue
+        if not is_name_section and _looks_like_prose(value):
+            continue
 
         items.append(BOMItem.from_pdf_row(
             location=refdes,

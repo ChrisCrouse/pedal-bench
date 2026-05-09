@@ -182,6 +182,50 @@ def test_parse_parts_list_pairs_orphan_pot_values() -> None:
     assert by_loc["FILTER"].value == "B100K"
 
 
+def test_parse_parts_list_pairs_orphan_value_for_ic_section() -> None:
+    """Regression: IC1's refdes and value land in different visual columns
+    (~70pt apart). Older parser only ran orphan-value lookup for pots/
+    switches, so IC entries silently dropped from the BOM. Diodes and
+    transistors had the same issue."""
+    # Section headers are multi-word but render visually as one segment —
+    # _word's default x1=x0+20 leaves too much gap, so spell out tight x1.
+    words = [
+        _word("INTEGRATED", 50, 100, x1=120),
+        _word("CIRCUITS", 125, 100, x1=180),
+        _word("IC1", 50, 120), _word("LM13700", 200, 120),
+        _word("IC2", 50, 140), _word("TL072", 200, 140),
+        _word("DIODES", 50, 170),
+        _word("D100", 50, 190), _word("1N5817", 200, 190),
+    ]
+    items = _parse_parts_list_page(words)
+    by_loc = {i.location: i for i in items}
+    assert by_loc["IC1"].value == "LM13700"
+    assert by_loc["IC1"].type == "Integrated circuit"
+    assert by_loc["IC2"].value == "TL072"
+    assert by_loc["D100"].value == "1N5817"
+    assert by_loc["D100"].type == "Diode"
+
+
+def test_parse_parts_list_recognizes_toggle_switches_section() -> None:
+    """Regression: 'TOGGLE SWITCHES' section header used to be unrecognized,
+    so its rows inherited the previous section's type (often Potentiometer)
+    and the literal word 'TOGGLE' got captured as a refdes."""
+    words = [
+        _word("POTENTIOMETERS", 50, 100, x1=140),
+        _word("DEPTH", 50, 120), _word("B25K", 200, 120),
+        _word("TOGGLE", 50, 150, x1=92),
+        _word("SWITCHES", 95, 150, x1=160),
+        _word("PV", 50, 170), _word("SPDT", 200, 170),
+        _word("RANGE", 50, 190), _word("SPDT", 200, 190),
+    ]
+    items = _parse_parts_list_page(words)
+    by_loc = {i.location: i for i in items}
+    assert "TOGGLE" not in by_loc, "TOGGLE shouldn't be captured as a refdes"
+    assert by_loc["DEPTH"].type == "Potentiometer"
+    assert by_loc["PV"].type == "Switch"
+    assert by_loc["RANGE"].type == "Switch"
+
+
 def test_parse_parts_list_skips_joiner_words() -> None:
     # "OR" between two SW1 alternatives must not be parsed as a refdes.
     words = [
