@@ -1,0 +1,147 @@
+{
+  "_comment": "Ballpark unit prices in USD, calibrated against typical Tayda Electronics retail. Used as a fallback when an InventoryItem has no unit_cost_usd set. Refresh once a year — the file is deliberately conservative-high so cost-to-finish estimates don't undershoot reality. Keys are canonical value_norm forms (see pedal_bench.core.inventory_index.normalize_value): resistors keyed in engineering notation ('10k', '4.7k', '1M'); caps in pF/nF/uF prefixes ('100n', '1u'); ICs/transistors/diodes uppercase part numbers ('TL072', '2N3904', '1N4148').",
+
+  "resistor": {
+    "_note": "1/4W carbon-film axial. Tayda runs ~$0.04-0.05 for stocked values, slightly more for less common ones. Default covers any unlisted value.",
+    "default": 0.05,
+    "values": {
+      "1": 0.05, "2.2": 0.05, "4.7": 0.05, "10": 0.05, "22": 0.05, "33": 0.05, "47": 0.05,
+      "68": 0.05, "100": 0.04, "150": 0.05, "220": 0.04, "330": 0.05, "470": 0.05,
+      "510": 0.05, "560": 0.05, "680": 0.05,
+      "1k": 0.04, "1.2k": 0.05, "1.5k": 0.05, "1.8k": 0.05,
+      "2.2k": 0.04, "2.7k": 0.05, "3.3k": 0.04, "3.9k": 0.05,
+      "4.7k": 0.04, "5.1k": 0.05, "5.6k": 0.05, "6.8k": 0.05,
+      "8.2k": 0.05, "10k": 0.04, "12k": 0.05, "15k": 0.05, "18k": 0.05,
+      "20k": 0.05, "22k": 0.04, "27k": 0.05, "33k": 0.04, "39k": 0.05,
+      "47k": 0.04, "56k": 0.05, "68k": 0.05, "75k": 0.05, "82k": 0.05,
+      "100k": 0.04, "120k": 0.05, "150k": 0.05, "180k": 0.05,
+      "220k": 0.04, "270k": 0.05, "330k": 0.04, "390k": 0.05,
+      "470k": 0.04, "510k": 0.05, "560k": 0.05, "680k": 0.05,
+      "820k": 0.05, "1M": 0.04, "1.5M": 0.05, "2.2M": 0.05,
+      "3.3M": 0.06, "4.7M": 0.06, "10M": 0.07
+    }
+  },
+
+  "film-cap": {
+    "_note": "Mixed bag — ceramic disc for small values, film/polyester/box for mid-range. Defaults to film/box pricing since that's what most pedal builds spec.",
+    "default": 0.20,
+    "values": {
+      "10p": 0.10, "22p": 0.10, "33p": 0.10, "47p": 0.10, "68p": 0.10,
+      "82p": 0.10, "100p": 0.10, "150p": 0.12, "220p": 0.12, "330p": 0.12,
+      "470p": 0.15, "560p": 0.15, "680p": 0.15, "820p": 0.15,
+      "1n": 0.15, "1.5n": 0.15, "2.2n": 0.15, "3.3n": 0.15, "4.7n": 0.15,
+      "6.8n": 0.18, "10n": 0.18, "15n": 0.18, "22n": 0.18, "33n": 0.18,
+      "47n": 0.20, "56n": 0.20, "68n": 0.20, "82n": 0.20,
+      "100n": 0.18, "150n": 0.22, "220n": 0.22, "330n": 0.25, "470n": 0.28,
+      "680n": 0.30, "1u": 0.30, "2.2u": 0.40, "4.7u": 0.55
+    }
+  },
+
+  "electrolytic": {
+    "_note": "Radial-leaded aluminum electrolytic, 16-50V range. Tayda standard.",
+    "default": 0.30,
+    "values": {
+      "0.47u": 0.12, "1u": 0.10, "2.2u": 0.12, "4.7u": 0.12, "10u": 0.15,
+      "22u": 0.15, "33u": 0.18, "47u": 0.18, "100u": 0.20, "220u": 0.25,
+      "470u": 0.35, "1000u": 0.55, "2200u": 0.85, "4700u": 1.40
+    }
+  },
+
+  "diode": {
+    "_note": "Common pedal diodes — signal, rectifier, schottky, and a handful of specific zeners. Germanium types vary wildly so they fall through to default.",
+    "default": 0.10,
+    "values": {
+      "1N4148": 0.04, "1N914": 0.05,
+      "1N4001": 0.05, "1N4002": 0.05, "1N4003": 0.05, "1N4004": 0.05,
+      "1N4005": 0.06, "1N4006": 0.06, "1N4007": 0.06,
+      "1N5817": 0.15, "1N5818": 0.15, "1N5819": 0.15,
+      "1N5226": 0.10, "1N5230": 0.10, "1N5231": 0.10, "1N5232": 0.10,
+      "1N5240": 0.10, "1N5242": 0.10, "1N5245": 0.10, "1N5248": 0.10,
+      "1N34A": 0.55, "1N270": 0.55,
+      "1N5408": 0.12,
+      "BAT41": 0.18, "BAT46": 0.20, "BAT85": 0.18,
+      "1N6263": 0.30
+    }
+  },
+
+  "transistor": {
+    "_note": "Silicon NPN/PNP/JFET/MOSFET commonly stocked for pedal builds. Germanium types (AC128, OC44, etc.) intentionally omitted — they're priced per selected hFE batch and vary too wildly for an oracle.",
+    "default": 0.15,
+    "values": {
+      "2N3904": 0.08, "2N3906": 0.08,
+      "2N2222": 0.10, "2N2222A": 0.10, "2N2907": 0.10, "2N2907A": 0.10,
+      "2N5087": 0.20, "2N5088": 0.20, "2N5089": 0.20,
+      "BC547": 0.10, "BC547B": 0.10, "BC547C": 0.10,
+      "BC557": 0.10, "BC557B": 0.10, "BC557C": 0.10,
+      "BC548": 0.10, "BC549": 0.10, "BC558": 0.10, "BC559": 0.10,
+      "BC182": 0.18, "BC183": 0.18, "BC212": 0.18, "BC213": 0.18,
+      "MPSA13": 0.18, "MPSA14": 0.18, "MPSA18": 0.20, "MPSA42": 0.18, "MPSA43": 0.18,
+      "MPSA92": 0.20, "MPSA93": 0.20,
+      "2N5457": 0.45, "2N5458": 0.45, "2N5459": 0.45,
+      "J201": 1.50, "J112": 0.50, "J113": 0.50,
+      "MPF102": 0.45, "MMBFJ201": 0.40,
+      "2N7000": 0.30, "BS170": 0.30, "BS250": 0.50,
+      "TIP31": 0.45, "TIP32": 0.45,
+      "BD139": 0.20, "BD140": 0.20
+    }
+  },
+
+  "pot": {
+    "_note": "Alpha 16mm PCB-mount pots are the de-facto pedal standard at Tayda. Price is largely value-independent: B25K, A100K, C1M all run ~$1.20. Larger 24mm panel-mount and special tapers cost more — entries below cover the common ones; default catches the rest. Knobs, jacks, and switches are still deferred until they get their own subtype dimensions.",
+    "default": 1.20,
+    "values": {
+      "b1k": 1.20, "b5k": 1.20, "b10k": 1.20, "b25k": 1.20, "b50k": 1.20,
+      "b100k": 1.20, "b250k": 1.20, "b500k": 1.20, "b1m": 1.20,
+      "a1k": 1.20, "a5k": 1.20, "a10k": 1.20, "a25k": 1.20, "a50k": 1.20,
+      "a100k": 1.20, "a250k": 1.20, "a500k": 1.20, "a1m": 1.20,
+      "c1k": 1.20, "c10k": 1.20, "c25k": 1.20, "c50k": 1.20, "c100k": 1.20,
+      "c250k": 1.20, "c500k": 1.20, "c1m": 1.20,
+      "w10k": 1.50, "w100k": 1.50, "w1m": 1.50
+    }
+  },
+
+  "switch": {
+    "_note": "Toggles, footswitches, and slide switches. Default covers a generic SPDT mini-toggle (~$1.50 at Tayda). Footswitches and DPDT/3PDT/4PDT toggles are specifically called out below — they're noticeably more expensive. Keys mirror normalize_value's switch path: lowercase + whitespace stripped, parens preserved.",
+    "default": 1.50,
+    "values": {
+      "spdt": 1.20, "spdt(on/on)": 1.20, "spdt(on/off/on)": 1.50,
+      "spst": 1.00, "spst(on/off)": 1.00,
+      "dpdt": 1.80, "dpdt(on/on)": 1.80, "dpdt(on/off/on)": 2.20,
+      "dpst": 1.50, "dpst(on/off)": 1.50,
+      "3pdt": 3.50, "3pdt(on/on)": 3.50, "3pdtfootswitch": 3.50,
+      "3pdtsoftrelay": 4.50, "3pdtbluefootswitch": 4.00,
+      "4pdt": 4.50, "4pdtfootswitch": 4.50,
+      "spdtmomentary": 1.80, "dpdtmomentary": 2.50,
+      "rotary": 4.00, "rotary2p6t": 4.00, "rotary4p3t": 4.50,
+      "slide": 0.80, "slide(on/on)": 0.80
+    }
+  },
+
+  "ic": {
+    "_note": "Op-amps and small-signal ICs commonly used in pedals. Default null because IC prices vary by 10x — better to show '—' than guess.",
+    "default": null,
+    "values": {
+      "TL071": 0.45, "TL072": 0.55, "TL074": 0.65,
+      "TL081": 0.45, "TL082": 0.55, "TL084": 0.65,
+      "TL061": 0.45, "TL062": 0.50, "TL064": 0.60,
+      "JRC4558": 0.55, "JRC4558D": 0.55, "RC4558": 0.45, "RC4558P": 0.45,
+      "NE5532": 0.65, "NE5534": 0.75,
+      "LM358": 0.40, "LM358N": 0.40, "LM358P": 0.40,
+      "LM324": 0.45, "LM324N": 0.45,
+      "LM386": 0.80, "LM386N": 0.80,
+      "LM741": 0.35,
+      "LM393": 0.40,
+      "OPA134": 1.80, "OPA2134": 3.00, "OPA2604": 4.50, "OPA1642": 4.00,
+      "OP07": 0.75, "OP27": 1.50, "OP37": 2.00,
+      "MC1458": 0.40,
+      "NE555": 0.40, "NE555N": 0.40,
+      "CD4049": 0.50, "CD4049UB": 0.50, "CD4011": 0.50, "CD4017": 0.65,
+      "CD4046": 0.85, "CD4066": 0.55,
+      "PT2399": 1.85,
+      "MN3007": 9.50, "MN3008": 11.00, "MN3207": 7.50, "MN3205": 12.00,
+      "BBD-CLK": 4.50, "MN3102": 4.00, "MN3101": 3.50,
+      "LFO-OTA": 0.85, "LM13700": 1.20, "LM13700N": 1.20, "CA3080": 2.50,
+      "TLC2272": 1.50, "TLC2274": 1.85
+    }
+  }
+}

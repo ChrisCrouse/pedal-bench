@@ -116,11 +116,21 @@ def classify(item_loc: str, item_type: str) -> str:
 
 
 # --- Value normalization ----------------------------------------------------
-# Goal: "100K", "100k", "100 K", "100k ohm", "100k 1/4w" all collapse to "100k"
-# so cross-project counts are sensible. Exact units we don't try to convert
-# (1µF vs 1uF) — just lowercase, strip whitespace, strip trailing "ohm"/"watt"
-# words. For ICs/transistors/diodes the "value" IS the part number, so we just
-# uppercase + strip whitespace.
+#
+# Goal: every equivalent way of writing a passive value collapses to ONE
+# canonical string so cross-project counts, BOM↔inventory matching, and
+# search all line up. The full grammar is documented in the project README
+# under "Resistor and Capacitor Value Conversion Rules" — this file is the
+# single backend implementation.
+#
+#   "100K" / "100k" / "100 K" / "100k ohm" / "100k 1/4w" / "100KF"   → "100k"
+#   "4K7" / "4700" / "4.7k" / "4K7J"                                  → "4.7k"
+#   "100n" / "0.1u" / "104"  (cap 3-digit code)                       → "100n"
+#   "4u7" / "u47" + decimal places                                    → "4.7u" / "470n"
+#   "R22" (R-prefix decimal)                                          → "0.22"
+#
+# ICs/transistors/diodes use part numbers; we just uppercase and strip
+# whitespace so "tl 072" and "TL072" collide.
 
 _UNIT_NOISE = re.compile(
     # Strip "ohm/watt/volt" words, optionally preceded by a wattage spec
@@ -131,80 +141,231 @@ _UNIT_NOISE = re.compile(
     re.I,
 )
 _WS = re.compile(r"\s+")
-_MICRO = re.compile(r"µ", re.I)
 
 
-def normalize_value(raw: str, kind: str) -> str:
-    """Collapse cosmetic differences so '100K' and '100k Ohm' compare equal."""
-    if not raw:
-        return ""
-    v = raw.strip()
-    # Normalize µ→u for capacitors so "1uF" == "1µF".
-    v = _MICRO.sub("u", v)
-    if kind in ("ic", "transistor", "diode"):
-        # Part numbers: just uppercase, drop whitespace.
-        return _WS.sub("", v.upper())
-    # Passives: lowercase, strip ohm/watt noise, collapse whitespace.
-    v = _UNIT_NOISE.sub("", v.lower())
-    v = _WS.sub("", v)
-    return v
+def _strip_micro(v: str) -> str:
+    """Collapse both µ (U+00B5 micro sign) and μ (U+03BC Greek mu) to ASCII u."""
+    return v.replace("µ", "u").replace("μ", "u")
 
 
-# SI suffix → multiplier. Case-sensitive: 'M' is mega, 'm' is milli. The
-# expected use is resistors and capacitors, which are the only kinds where
-# numeric magnitude is meaningful for sorting.
-_SI: dict[str, float] = {
+# Resistor tolerance suffix codes (IEC). F overlaps with farad and K/M
+# overlap with multipliers, so we only strip these as tolerance when their
+# position is unambiguous.
+_RES_TOL_AFTER_MULT_RE = re.compile(
+    # 4K7J / 10KF / R22F / 100KK — multiplier letter present earlier, then
+    # a single tolerance code at the end.
+    r"^([\d.]*[RKMG][\d.]*)([FGJKM])$",
+    re.IGNORECASE,
+)
+_RES_TOL_PURE_DIGITS_RE = re.compile(
+    # 100J / 470F — pure digits then F or J at the end. K, M, and G are
+    # kept as multipliers in this position (the multiplier reading is far
+    # more common in real BOMs than the tolerance reading).
+    r"^([\d.]+)([FJ])$",
+    re.IGNORECASE,
+)
+
+
+def _strip_resistor_tolerance(s: str) -> str:
+    """Drop a trailing tolerance letter from a resistor input string.
+
+    "4K7J" → "4K7"; "10KF" → "10K"; "100J" → "100"; "10K" stays "10K"
+    (single trailing K is the multiplier in pure-digits-then-letter form).
+    Tolerance is dropped from the value string entirely — we don't track
+    tolerance percentage today.
+    """
+    m = _RES_TOL_AFTER_MULT_RE.match(s)
+    if m:
+        return m.group(1)
+    m = _RES_TOL_PURE_DIGITS_RE.match(s)
+    if m:
+        return m.group(1)
+    return s
+
+
+# Resistor multiplier letters per IEC / RKM notation. R also acts as
+# "ohms anchor" so "R22" = 0.22Ω and "220R" = 220Ω.
+_RES_MULTIPLIER: dict[str, float] = {
+    "R": 1.0,
+    "K": 1e3,
+    "M": 1e6,
+    "G": 1e9,
+}
+
+# Capacitor multiplier letters. Both µ and μ map to 'u' before parsing.
+# Case-insensitive — caps don't go big enough for kilo/mega ambiguity to
+# matter, and the spec only lists p/n/u/m for caps.
+_CAP_MULTIPLIER: dict[str, float] = {
     "p": 1e-12,
     "n": 1e-9,
     "u": 1e-6,
     "m": 1e-3,
-    "r": 1.0,    # resistor "ohms" marker — "10R" == 10Ω
-    "k": 1e3,
-    "M": 1e6,
-    "meg": 1e6,
 }
 
-_MAG_RE = re.compile(r"^([\d.]+)\s*(meg|[pnumkrRM])?", re.IGNORECASE)
-_MAG_EMBEDDED_RE = re.compile(r"^(\d+)([pnumkrRM]|meg)(\d+)$", re.IGNORECASE)
 
+def _parse_resistor_magnitude(s: str) -> float | None:
+    s = _strip_resistor_tolerance(s)
 
-def value_magnitude(raw: str, kind: str) -> float | None:
-    """Parse a passive value like '10k', '1.2k', '100n', '4u7' into a number.
-
-    Returns None for IC/transistor/diode part numbers, empty input, or
-    anything that doesn't start with a digit. Used so sort orders by actual
-    magnitude (1k=1000 < 100k=100000 < 1M=1e6) instead of lexicographic
-    "100k" < "10k".
-    """
-    if not raw or kind in ("ic", "transistor", "diode"):
-        return None
-    s = raw.strip().replace("µ", "u")
-
-    # "4u7" / "2k2" notation: digit, suffix, digit → digit.digit × suffix.
-    embedded = _MAG_EMBEDDED_RE.match(s)
-    if embedded:
-        whole, suffix, frac = embedded.group(1), embedded.group(2), embedded.group(3)
-        # Case matters: 'M' is mega, 'm' is milli.
-        mult = _SI.get(suffix) if suffix in _SI else _SI.get(suffix.lower())
-        if mult is None:
-            return None
+    # R-prefix: "R22" = 0.22Ω, "K47" = 0.47kΩ, etc.
+    m = re.match(r"^([RKMG])(\d+)$", s, re.IGNORECASE)
+    if m:
+        mult = _RES_MULTIPLIER[m.group(1).upper()]
         try:
-            return float(f"{whole}.{frac}") * mult
+            return float(f"0.{m.group(2)}") * mult
         except ValueError:
             return None
 
-    m = _MAG_RE.match(s)
-    if not m:
-        return None
-    try:
-        num = float(m.group(1))
-    except ValueError:
-        return None
-    suffix = m.group(2)
-    if not suffix:
+    # Letter-as-decimal-point: "4K7" = 4.7k, "2M2" = 2.2M
+    m = re.match(r"^(\d+)([RKMG])(\d+)$", s, re.IGNORECASE)
+    if m:
+        mult = _RES_MULTIPLIER[m.group(2).upper()]
+        try:
+            return float(f"{m.group(1)}.{m.group(3)}") * mult
+        except ValueError:
+            return None
+
+    # Standard form: "10k" / "100" / "4.7k" / "1.2K"
+    m = re.match(r"^([\d.]+)\s*([RKMG])?$", s, re.IGNORECASE)
+    if m:
+        try:
+            num = float(m.group(1))
+        except ValueError:
+            return None
+        if m.group(2):
+            return num * _RES_MULTIPLIER[m.group(2).upper()]
         return num
-    mult = _SI.get(suffix) if suffix in _SI else _SI.get(suffix.lower())
-    return num * (mult if mult is not None else 1.0)
+
+    return None
+
+
+def _parse_capacitor_magnitude(s: str) -> float | None:
+    # Strip optional trailing F (farad indicator): "10uF" → "10u"
+    s_no_f = re.sub(r"[Ff]$", "", s) if len(s) > 1 else s
+
+    # 3-digit code (only when input is exactly 3 digits): "104" = 100nF.
+    # Parsed as AB × 10^N picofarads.
+    if re.match(r"^\d{3}$", s_no_f):
+        ab = int(s_no_f[:2])
+        n = int(s_no_f[2])
+        return ab * (10 ** n) * 1e-12
+
+    # u-prefix decimal: "u47" = 0.47uF, "n47" = 0.47nF, "p47" = 0.47pF.
+    m = re.match(r"^([pnumPNUM])(\d+)$", s_no_f)
+    if m:
+        mult = _CAP_MULTIPLIER[m.group(1).lower()]
+        try:
+            return float(f"0.{m.group(2)}") * mult
+        except ValueError:
+            return None
+
+    # Letter-as-decimal-point: "4u7" = 4.7uF, "2n2" = 2.2nF
+    m = re.match(r"^(\d+)([pnumPNUM])(\d+)$", s_no_f)
+    if m:
+        mult = _CAP_MULTIPLIER[m.group(2).lower()]
+        try:
+            return float(f"{m.group(1)}.{m.group(3)}") * mult
+        except ValueError:
+            return None
+
+    # Standard form: "100n" / "10u" / "47p" / "1.5n" / bare "1" (= 1F)
+    m = re.match(r"^([\d.]+)\s*([pnumPNUM])?$", s_no_f)
+    if m:
+        try:
+            num = float(m.group(1))
+        except ValueError:
+            return None
+        if m.group(2):
+            return num * _CAP_MULTIPLIER[m.group(2).lower()]
+        return num  # bare number — interpret as farads (rare but unambiguous)
+
+    return None
+
+
+def value_magnitude(raw: str, kind: str) -> float | None:
+    """Parse a passive value to a numeric magnitude in base units.
+
+    Resistors → ohms. Capacitors → farads. ICs / transistors / diodes
+    return None — their value is a part number, not a magnitude.
+
+    Follows IEC / RKM resistor notation and 3-digit-code capacitor
+    notation as documented in the README. Returns None if the input
+    can't be parsed.
+    """
+    if not raw or kind in ("ic", "transistor", "diode"):
+        return None
+    s = _strip_micro(raw.strip())
+    if not s:
+        return None
+
+    if kind == "resistor":
+        return _parse_resistor_magnitude(s)
+    if kind in ("film-cap", "electrolytic"):
+        return _parse_capacitor_magnitude(s)
+    return None
+
+
+def _format_engineering(mag: float, kind: str) -> str:
+    """Render a numeric magnitude back to canonical engineering notation.
+
+    Resistors use R/k/M/G; capacitors use p/n/u/m. Uses %g formatting so
+    integer-valued numbers print without a trailing ".0" ("10k" not "10.0k").
+    """
+    if mag == 0:
+        return "0"
+    if kind == "resistor":
+        prefixes = [(1e9, "G"), (1e6, "M"), (1e3, "k"), (1.0, "")]
+    else:  # capacitor kinds
+        prefixes = [(1.0, "F"), (1e-3, "m"), (1e-6, "u"), (1e-9, "n"), (1e-12, "p")]
+    for div, prefix in prefixes:
+        if abs(mag) >= div:
+            val = mag / div
+            return f"{val:g}{prefix}"
+    # Below the smallest prefix (e.g., sub-ohm value or sub-pF cap)
+    return f"{mag:g}"
+
+
+def normalize_value(raw: str, kind: str) -> str:
+    """Collapse cosmetic differences so equivalent forms share a single key.
+
+    For passives we parse to a numeric magnitude and re-render in canonical
+    engineering form ("100K Ohm" → "100k", "104" → "100n", "4K7" → "4.7k").
+    Inputs that don't parse fall back to the old cosmetic normalization
+    (lowercase + strip spaces and ohm/watt noise) so we don't lose data.
+    """
+    if not raw:
+        return ""
+    v = _strip_micro(raw.strip())
+    if kind in ("ic", "transistor", "diode"):
+        return _WS.sub("", v.upper())
+
+    # Pots and switches both store a free-form descriptor as their "value"
+    # (B25K / SPDT (On/Off/On)) rather than a numeric magnitude. The pot
+    # path matters specifically because W-taper pots collide with the
+    # _UNIT_NOISE wattage stripper ("W10K" → "10k" loses the taper letter).
+    # Switches go down the same lane for consistency — preserve the raw
+    # description so SPDT and DPDT and 3PDT all stay distinct keys.
+    if kind in ("pot", "switch"):
+        return _WS.sub("", v.lower())
+
+    # Other passives (resistor / cap kinds): prefer the numeric canonical
+    # form so equivalent inputs always produce the same key. Strip noise
+    # first so "100k 1/4w" and similar still parse.
+    cleaned = _UNIT_NOISE.sub("", v).strip()
+    cleaned = _WS.sub("", cleaned)
+
+    # For resistors, also drop the tolerance suffix before checking magnitude
+    # (so "10KF" → 10000Ω, not None). _parse_resistor_magnitude does this
+    # internally, but the cosmetic fallback below needs the same treatment
+    # to keep "10kf" and "10k" producing the same value_norm.
+    if kind == "resistor":
+        cleaned = _strip_resistor_tolerance(cleaned)
+
+    mag = value_magnitude(cleaned, kind)
+    if mag is not None:
+        return _format_engineering(mag, kind)
+
+    # Unparseable — fall back to old cosmetic form.
+    return cleaned.lower()
 
 
 @dataclass

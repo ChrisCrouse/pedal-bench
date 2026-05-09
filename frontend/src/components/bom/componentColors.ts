@@ -49,17 +49,19 @@ export const KIND_LABELS: Record<ComponentKind, string> = {
 export function classifyComponent(item: BOMItem): ComponentKind {
   const t = item.type.toLowerCase();
   const loc = item.location.toLowerCase();
-  // Location prefix takes priority because PedalPCB refdes are consistent.
-  if (loc.startsWith("ic")) return "ic";
-  if (loc.startsWith("q")) return "transistor";
-  if (loc.startsWith("d")) return "diode";
-  if (loc.startsWith("l") && /^l\d+$/.test(loc)) return "inductor";
-  if (loc.startsWith("sw") || loc.startsWith("s")) {
-    if (/^s\d+$/.test(loc) || /^sw\d+$/.test(loc)) return "switch";
-  }
-  if (loc.startsWith("r") && /^r\d+$/.test(loc)) return "resistor";
+  // Location prefix takes priority because PedalPCB refdes are consistent —
+  // BUT we must require digits after the letter, otherwise pot names like
+  // "DEPTH" / "DRIVE" get classified as diodes (they start with 'D'), and
+  // "QUACK" / "INPUT" would mis-bucket too. The patterns below match the
+  // backend classifier in inventory_index.py — keep them in lockstep.
+  if (/^ic\d/.test(loc)) return "ic";
+  if (/^q\d/.test(loc)) return "transistor";
+  if (/^d\d/.test(loc)) return "diode";
+  if (/^l\d+$/.test(loc)) return "inductor";
+  if (/^s\d+$/.test(loc) || /^sw\d+$/.test(loc)) return "switch";
+  if (/^r\d+$/.test(loc)) return "resistor";
   if (loc === "clr") return "resistor";
-  if (loc.startsWith("c") && /^c\d+$/.test(loc)) {
+  if (/^c\d+$/.test(loc)) {
     return t.includes("electrolytic") || t.includes("tantalum")
       ? "electrolytic"
       : "film-cap";

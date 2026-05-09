@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useOutletContext } from "react-router-dom";
+import { useOutletContext } from "react-router-dom";
 import { api, type BOMItem, type Project, type ShortageRow } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
@@ -15,7 +15,7 @@ import {
 import { VerifyComponentDialog } from "@/components/bom/VerifyComponentDialog";
 import { TaydaShoppingDialog } from "@/components/bom/TaydaShoppingDialog";
 import { useAIAvailable } from "@/components/ui/AIRequiredNotice";
-import { orientationHintFor } from "@/lib/orientation";
+import { orientationHintFor, orientationHintSummary } from "@/lib/orientation";
 import { normalizeValue } from "@/lib/partValue";
 
 interface Ctx {
@@ -38,9 +38,43 @@ function isPolaritySensitive(t: string): boolean {
   return POLARITY_KEYWORDS.some((k) => lower.includes(k));
 }
 
+/** Soldering build order: flat parts first (resistors, diodes, small caps),
+ *  then ICs/transistors, then taller through-hole (electros, pots). The Parts
+ *  tab uses this as default sort so checking off rows top-to-bottom matches
+ *  how you'd actually populate the PCB. */
+const BUILD_ORDER: ComponentKind[] = [
+  "resistor",
+  "diode",
+  "film-cap",
+  "ic",
+  "transistor",
+  "electrolytic",
+  "pot",
+  "inductor",
+  "switch",
+  "other",
+];
+
 export function BOMTab() {
   const { slug, project } = useOutletContext<Ctx>();
   const qc = useQueryClient();
+
+  // Local soldered-locations set; saved through PUT /progress. We track
+  // inventory side-effects (consumed/restored/warnings) so the side panel
+  // can flash deficit hints.
+  const [soldered, setSoldered] = useState<Set<string>>(
+    new Set(project.progress.soldered_locations),
+  );
+  // Re-sync local soldered state when the project payload changes (e.g. after
+  // server invalidation triggered by a save).
+  useEffect(() => {
+    setSoldered(new Set(project.progress.soldered_locations));
+  }, [project.progress.soldered_locations]);
+  const [solderWarnings, setSolderWarnings] = useState<string[]>([]);
+
+  // Build workflow filters — useful enough to keep visible always.
+  const [showPolarityOnly, setShowPolarityOnly] = useState(false);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
 
   const [bom, setBom] = useState<BOMItem[]>(project.bom);
   const [filter, setFilter] = useState("");
@@ -109,17 +143,81 @@ export function BOMTab() {
       if (!res.ok) throw new Error(await res.text());
       return (await res.json()) as BOMItem[];
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects", slug] });
-      qc.invalidateQueries({ queryKey: ["projects"] });
-    },
+    // ["projects"] is a prefix match, so invalidating it refreshes the
+    // project list (sidebar dots, home cards) AND this project's detail
+    // AND its shortage query. BOM edits change readiness/cost everywhere.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
 
   const saveRefdesMutation = useMutation({
     mutationFn: (map: Record<string, [number, number]>) =>
       api.projects.setRefdesMap(slug, map),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", slug] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
   });
+
+  // Cache-buster bumped after upload/clear so the <img> refetches even though
+  // the URL itself is stable. Stays in sync with project.has_custom_pcb_image.
+  const [pcbImageVersion, setPcbImageVersion] = useState(0);
+
+  const uploadPcbImageMutation = useMutation({
+    mutationFn: (file: File) => api.projects.attachPcbLayoutImage(slug, file),
+    onSuccess: () => {
+      setPcbImageVersion((v) => v + 1);
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+
+  const clearPcbImageMutation = useMutation({
+    mutationFn: () => api.projects.deletePcbLayoutImage(slug),
+    onSuccess: () => {
+      setPcbImageVersion((v) => v + 1);
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+
+  // Progress mutation — saves soldered_locations and applies inventory
+  // consumption server-side. Same wire shape the old Bench tab used.
+  const progressMutation = useMutation({
+    mutationFn: async (next: Set<string>) => {
+      const res = await fetch(`/api/v1/projects/${slug}/progress`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          soldered_locations: [...next].sort(),
+          current_phase: project.progress.current_phase,
+          phase_notes: project.progress.phase_notes,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return (await res.json()) as {
+        progress: { soldered_locations: string[] };
+        consumed: [string, number][];
+        restored: [string, number][];
+        warnings: string[];
+      };
+    },
+    onSuccess: (data) => {
+      // Soldering changes inventory on_hand (consumed) and every project's
+      // shortage (because inventory dropped pool-wide). Invalidate both
+      // tree roots so sidebar readiness, Owned counters, Shopping list,
+      // and per-project availability all re-fetch.
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      if (data.consumed.length > 0 || data.restored.length > 0) {
+        qc.invalidateQueries({ queryKey: ["inventory"] });
+      }
+      setSolderWarnings(data.warnings);
+    },
+  });
+
+  const toggleSoldered = (location: string) => {
+    // Hoist the side effect out of the state updater so React StrictMode's
+    // double-invoke in dev doesn't fire the mutation twice.
+    const next = new Set(soldered);
+    if (next.has(location)) next.delete(location);
+    else next.add(location);
+    setSoldered(next);
+    progressMutation.mutate(next);
+  };
 
   // Shortage view: needed minus available across owned-stock for THIS project.
   // Refetches when the BOM changes (saveBomMutation invalidates project data).
@@ -128,7 +226,8 @@ export function BOMTab() {
     queryFn: () => api.projects.shortage(slug),
   });
 
-  // Index by `(kind, value_norm)` so each BOM row can show its own badge.
+  // Index by `(kind, value_norm)` so each BOM row can show its own
+  // availability badge inline.
   const shortageByKindValue = useMemo(() => {
     const m = new Map<string, ShortageRow>();
     for (const r of shortageQuery.data?.rows ?? []) {
@@ -149,8 +248,10 @@ export function BOMTab() {
       }
     },
     onSuccess: () => {
+      // Reservations change inventory state and every project's
+      // available counts pool-wide. Refresh both trees.
       qc.invalidateQueries({ queryKey: ["inventory"] });
-      qc.invalidateQueries({ queryKey: ["projects", slug, "shortage"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 
@@ -168,8 +269,23 @@ export function BOMTab() {
           b.type.toLowerCase().includes(q),
       );
     }
-    return rows;
-  }, [bom, filter, filterKind]);
+    if (showPolarityOnly) rows = rows.filter((b) => b.polarity_sensitive);
+    if (showPendingOnly) rows = rows.filter((b) => !soldered.has(b.location));
+    // Sort by build order: resistors → diodes → small caps → ICs → transistors
+    // → electros → pots. Within a kind, refdes order (R1, R2, R3, …) is
+    // preserved as a stable tiebreaker.
+    const orderIndex = new Map<ComponentKind, number>(
+      BUILD_ORDER.map((k, i) => [k, i]),
+    );
+    return [...rows].sort((a, b) => {
+      const ka = classifyComponent(a);
+      const kb = classifyComponent(b);
+      const oa = orderIndex.get(ka) ?? 999;
+      const ob = orderIndex.get(kb) ?? 999;
+      if (oa !== ob) return oa - ob;
+      return a.location.localeCompare(b.location, undefined, { numeric: true });
+    });
+  }, [bom, filter, filterKind, showPolarityOnly, showPendingOnly, soldered]);
 
   const updateAt = (index: number, patch: Partial<BOMItem>) => {
     setBom((prev) =>
@@ -236,6 +352,11 @@ export function BOMTab() {
 
   const taggedCount = Object.keys(refdesMap).length;
 
+  // Soldering progress numbers shown in the toolbar.
+  const totalParts = bom.length;
+  const doneCount = Math.min(soldered.size, totalParts);
+  const donePct = totalParts ? Math.round((100 * doneCount) / totalParts) : 0;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar */}
@@ -244,6 +365,18 @@ export function BOMTab() {
           <span className="font-medium text-zinc-700 dark:text-zinc-300">
             {bom.length} items
           </span>
+          {totalParts > 0 && (
+            <span className="ml-2 inline-flex items-center gap-1.5 align-middle text-xs">
+              · <span className="font-semibold text-zinc-900 dark:text-zinc-100 tabular-nums">{doneCount}/{totalParts}</span>
+              <span className="text-zinc-500">soldered</span>
+              <span className="inline-block h-2 w-24 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <span
+                  className="block h-full bg-emerald-500 transition-all"
+                  style={{ width: `${donePct}%` }}
+                />
+              </span>
+            </span>
+          )}
           {taggedCount > 0 && (
             <span className="ml-2 text-xs">
               · <span className="font-medium text-emerald-700 dark:text-emerald-400">{taggedCount}</span> tagged
@@ -299,6 +432,26 @@ export function BOMTab() {
             </button>
           )}
         </div>
+        <div className="flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={showPolarityOnly}
+              onChange={(e) => setShowPolarityOnly(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Polarity only
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={showPendingOnly}
+              onChange={(e) => setShowPendingOnly(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Pending only
+          </label>
+        </div>
         <div className="ml-auto flex gap-2">
           {project.source_pdf && (
             <Button
@@ -322,7 +475,7 @@ export function BOMTab() {
             }
             title="Reserve every available part this build needs against your inventory"
           >
-            {reserveAllMutation.isPending ? "Reserving…" : "Reserve available"}
+            {reserveAllMutation.isPending ? "Reserving…" : "Reserve from Inventory"}
           </Button>
           <Button
             variant="ghost"
@@ -347,6 +500,24 @@ export function BOMTab() {
           Re-extract failed: {reextractError}
         </div>
       )}
+      {solderWarnings.length > 0 && (
+        <div className="border-b border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-medium">Inventory note</span>
+            <button
+              onClick={() => setSolderWarnings([])}
+              className="text-xs underline opacity-70 hover:opacity-100"
+            >
+              dismiss
+            </button>
+          </div>
+          <ul className="list-inside list-disc space-y-0.5 text-xs">
+            {solderWarnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Split workspace */}
       <div className="flex min-h-0 flex-1">
@@ -354,12 +525,13 @@ export function BOMTab() {
           <table className="min-w-full border-separate border-spacing-0 text-sm">
             <thead className="sticky top-0 z-10 bg-zinc-50 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:bg-zinc-900">
               <tr>
+                <Th className="w-12 text-center">Done</Th>
                 <Th className="w-8">&nbsp;</Th>
                 <Th>Loc</Th>
                 <Th>Value</Th>
-                <Th>Type</Th>
-                <Th>Notes</Th>
-                <Th className="w-20 text-center">
+                <Th className="hidden md:table-cell">Type</Th>
+                <Th className="hidden xl:table-cell">Notes</Th>
+                <Th className="hidden w-28 text-center lg:table-cell">
                   <span title="Polarity-sensitive parts — orient correctly before soldering. Hover the ⚠ for the specific reminder.">
                     Polarity
                   </span>
@@ -379,6 +551,8 @@ export function BOMTab() {
                 const isTagged = !!refdesMap[item.location];
                 const isHovered = hoverLoc === item.location;
                 const isSelected = selectedLoc === item.location;
+                const isDone = soldered.has(item.location);
+                const hint = orientationHintFor(item);
                 // Sticky cells need an opaque background that matches the row.
                 const stickyBg = isSelected
                   ? "bg-emerald-50 dark:bg-emerald-950"
@@ -392,16 +566,34 @@ export function BOMTab() {
                     onMouseLeave={() => setHoverLoc(null)}
                     className={[
                       "transition",
-                      isSelected
-                        ? "bg-emerald-50 dark:bg-emerald-900/20"
-                        : isHovered
-                          ? "bg-zinc-50 dark:bg-zinc-900"
-                          : "",
+                      isDone
+                        ? "bg-emerald-50/50 dark:bg-emerald-950/20"
+                        : isSelected
+                          ? "bg-emerald-50 dark:bg-emerald-900/20"
+                          : isHovered
+                            ? "bg-zinc-50 dark:bg-zinc-900"
+                            : "",
                     ].join(" ")}
                   >
-                    <Td className="pl-3">
+                    <Td className="text-center">
+                      <button
+                        onClick={() => toggleSoldered(item.location)}
+                        aria-checked={isDone}
+                        role="checkbox"
+                        title={isDone ? "Soldered — click to unmark" : "Mark soldered"}
+                        className={[
+                          "inline-flex h-5 w-5 items-center justify-center rounded border-2 text-xs font-bold transition",
+                          isDone
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-zinc-300 bg-white hover:border-emerald-400 dark:border-zinc-600 dark:bg-zinc-900",
+                        ].join(" ")}
+                      >
+                        {isDone ? "✓" : ""}
+                      </button>
+                    </Td>
+                    <Td className="pl-2">
                       <span
-                        className="inline-block h-3 w-3 rounded-sm"
+                        className="inline-block h-2.5 w-2.5 rounded-sm"
                         style={{ backgroundColor: color.fill }}
                         title={KIND_LABELS[kind]}
                       />
@@ -410,40 +602,44 @@ export function BOMTab() {
                       <CellInput
                         value={item.location}
                         onChange={(v) => updateAt(actualIdx, { location: v })}
-                        className="w-20 font-mono font-semibold"
+                        className={`w-16 font-mono font-semibold ${
+                          isDone ? "text-zinc-400 line-through" : ""
+                        }`}
                       />
                     </Td>
                     <Td>
                       <CellInput
                         value={item.value}
                         onChange={(v) => updateAt(actualIdx, { value: v })}
-                        className="w-24 font-mono"
+                        className={`w-44 font-mono ${isDone ? "text-zinc-400" : ""}`}
                       />
                     </Td>
-                    <Td>
+                    <Td className="hidden md:table-cell">
                       <CellInput
                         value={item.type}
                         onChange={(v) => updateAt(actualIdx, { type: v })}
-                        className="w-full min-w-[200px]"
+                        className={`w-full min-w-[140px] ${
+                          isDone ? "text-zinc-400" : ""
+                        }`}
                       />
                     </Td>
-                    <Td>
+                    <Td className="hidden xl:table-cell">
                       <CellInput
                         value={item.notes}
                         onChange={(v) => updateAt(actualIdx, { notes: v })}
-                        className="w-full min-w-[140px]"
+                        className="w-full"
                       />
                     </Td>
-                    <Td className="text-center">
-                      {item.polarity_sensitive && (
+                    <Td className="hidden text-center lg:table-cell">
+                      {item.polarity_sensitive && !isDone && (
                         <span
-                          className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-300"
+                          className="inline-flex max-w-full items-center gap-1 truncate whitespace-nowrap rounded bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-900/30 dark:text-amber-300"
                           title={
-                            orientationHintFor(item) ??
+                            hint ??
                             "Polarity-sensitive — check orientation before soldering"
                           }
                         >
-                          ⚠ check
+                          {hint ? `⚠ ${orientationHintSummary(hint)}` : "⚠ check"}
                         </span>
                       )}
                     </Td>
@@ -522,7 +718,7 @@ export function BOMTab() {
               })}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-zinc-500">
+                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-zinc-500">
                     {bom.length === 0
                       ? "No BOM yet — add rows manually or import from a PedalPCB PDF."
                       : "No matches for filter."}
@@ -531,35 +727,41 @@ export function BOMTab() {
               )}
             </tbody>
           </table>
-          {aiAvailable === false && bom.length > 0 && (
-            <div className="border-t border-zinc-100 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800">
-              Track build progress on the{" "}
-              <Link
-                to={`/projects/${slug}/bench`}
-                className="text-emerald-700 underline hover:text-emerald-900 dark:text-emerald-400"
-              >
-                Bench tab →
-              </Link>
-            </div>
-          )}
         </div>
 
-        <aside className="w-[45%] min-w-[400px] shrink-0 border-l border-zinc-200 dark:border-zinc-800">
-          <PcbLayoutViewer
-            imageUrl={api.projects.pcbLayoutImageUrl(slug)}
-            bom={bom}
-            refdesMap={refdesMap}
-            highlightLocation={hoverLoc || selectedLoc}
-            tagMode={tagMode}
-            onTag={handleTag}
-            onHoverLocation={setHoverLoc}
-            onSelectLocation={(loc) => setSelectedLoc(loc)}
-          />
-          {refdesDirty && saveRefdesMutation.isPending && (
-            <div className="border-t border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-              Saving tag…
+        <aside className="flex w-[45%] min-w-[400px] max-w-[900px] shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800">
+          {/* PCB pane fills the aside. Per-row inventory availability is
+           *  shown inline in the BOM table, so no separate panel here. */}
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="min-h-0 flex-1">
+              <PcbLayoutViewer
+                imageUrl={`${api.projects.pcbLayoutImageUrl(slug)}?v=${pcbImageVersion}`}
+                bom={bom}
+                refdesMap={refdesMap}
+                highlightLocation={hoverLoc || selectedLoc}
+                tagMode={tagMode}
+                onTag={handleTag}
+                onHoverLocation={setHoverLoc}
+                onSelectLocation={(loc) => setSelectedLoc(loc)}
+                onUploadImage={async (file) => {
+                  await uploadPcbImageMutation.mutateAsync(file);
+                }}
+                onClearImage={
+                  project.has_custom_pcb_image
+                    ? async () => {
+                        await clearPcbImageMutation.mutateAsync();
+                      }
+                    : undefined
+                }
+                hasCustomImage={!!project.has_custom_pcb_image}
+              />
             </div>
-          )}
+            {refdesDirty && saveRefdesMutation.isPending && (
+              <div className="border-t border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
+                Saving tag…
+              </div>
+            )}
+          </div>
         </aside>
       </div>
       {verifyRow && (
@@ -617,7 +819,7 @@ export function BOMTab() {
             )}
             <p className="text-xs text-zinc-500">
               Replacing only updates the editor. Click <strong>Save</strong> on the
-              BOM tab afterwards to persist — until then your current rows are
+              Parts tab afterwards to persist — until then your current rows are
               still on disk.
             </p>
             <div className="flex justify-end gap-2 pt-2">
@@ -638,7 +840,7 @@ export function BOMTab() {
 function Th({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <th
-      className={`border-b border-zinc-200 px-3 py-2 text-left dark:border-zinc-800 ${className ?? ""}`}
+      className={`border-b border-zinc-200 px-2 py-1.5 text-left dark:border-zinc-800 ${className ?? ""}`}
     >
       {children}
     </th>
@@ -648,7 +850,7 @@ function Th({ children, className }: { children: React.ReactNode; className?: st
 function Td({ children, className }: { children: React.ReactNode; className?: string }) {
   // border-separate means <tr> borders don't render; row separator goes per-cell.
   return (
-    <td className={`border-b border-zinc-100 px-3 py-1 align-middle dark:border-zinc-800 ${className ?? ""}`}>
+    <td className={`border-b border-zinc-100 px-2 py-0.5 align-middle dark:border-zinc-800 ${className ?? ""}`}>
       {children}
     </td>
   );
@@ -662,13 +864,13 @@ function AvailabilityBadge({
   needed: number;
 }) {
   if (!row) return null;
-  // Effective availability for this build: free stock + what we've already
-  // reserved for ourselves (we can keep using those).
+  // Effective availability for this build = free stock + what's already
+  // reserved for this project (we can keep using those without releasing
+  // them). If that covers `needed`, we're set; otherwise show a "have/need"
+  // shortfall pill.
   const effective = row.available + row.reserved_for_self;
   const ok = effective >= needed;
-  const label = ok
-    ? `✓ ${row.available + row.reserved_for_self}`
-    : `${effective}/${needed}`;
+  const label = ok ? `✓ ${effective}` : `${effective}/${needed}`;
   const tooltip = [
     `On hand: ${row.on_hand}`,
     row.reserved_for_others > 0
@@ -685,7 +887,7 @@ function AvailabilityBadge({
     <span
       title={tooltip}
       className={[
-        "rounded px-1 text-[10px] font-medium tabular-nums",
+        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
         ok
           ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
           : "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-300",

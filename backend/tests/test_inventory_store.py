@@ -131,6 +131,77 @@ def test_legacy_per_value_migration(tmp_path: Path) -> None:
     assert items[0].key == inventory_key(items[0].kind, items[0].value_norm)
 
 
+def test_load_recanonicalizes_stale_value_norm(tmp_path: Path) -> None:
+    """Inventory items written with an older parser should re-canonicalize on
+    load so BOM lookups using the current parser still find them.
+
+    Concrete case: '1uF' / '1uf' both used to be the canonical form; now
+    '1u' is. A BOM that says '1u' must still match a stored '1uF' item.
+    """
+    path = tmp_path / "inventory.json"
+    path.write_text(json.dumps({
+        "items": {
+            "film-cap::1uf": {
+                "kind": "film-cap",
+                "value_norm": "1uf",
+                "display_value": "1uF",
+                "on_hand": 5,
+                "reservations": {},
+            },
+            "resistor::100k ohm": {
+                "kind": "resistor",
+                "value_norm": "100k ohm",
+                "display_value": "100K Ohm",
+                "on_hand": 12,
+                "reservations": {},
+            },
+        }
+    }))
+    inv = InventoryStore(path)
+    inv.load()
+
+    # Both items should now be findable under their canonical keys.
+    cap = inv.get(inventory_key("film-cap", "1u"))
+    assert cap is not None
+    assert cap.on_hand == 5
+    assert cap.value_norm == "1u"
+
+    res = inv.get(inventory_key("resistor", "100k"))
+    assert res is not None
+    assert res.on_hand == 12
+    assert res.value_norm == "100k"
+
+
+def test_load_collapses_equivalent_forms_into_one_item(tmp_path: Path) -> None:
+    """If two legacy entries normalize to the same canonical key (e.g. '104'
+    and '100n' for film-caps), their on_hand counts merge."""
+    path = tmp_path / "inventory.json"
+    path.write_text(json.dumps({
+        "items": {
+            "film-cap::100n": {
+                "kind": "film-cap",
+                "value_norm": "100n",
+                "display_value": "100n",
+                "on_hand": 7,
+                "reservations": {},
+            },
+            "film-cap::104": {
+                "kind": "film-cap",
+                "value_norm": "104",
+                "display_value": "104",
+                "on_hand": 3,
+                "reservations": {},
+            },
+        }
+    }))
+    inv = InventoryStore(path)
+    inv.load()
+    assert len(inv.items()) == 1
+    merged = inv.get(inventory_key("film-cap", "100n"))
+    assert merged is not None
+    assert merged.on_hand == 10
+
+
 def test_legacy_bucket_migrates_to_zero_with_note(tmp_path: Path) -> None:
     path = tmp_path / "inventory.json"
     path.write_text(json.dumps({

@@ -24,3 +24,25 @@ export function orientationHintFor(item: {
 }): string | null {
   return item.orientation_hint ?? defaultOrientationHint(item.type);
 }
+
+/**
+ * Extract a short pill-friendly label from a long orientation hint. Hints
+ * conventionally use ` — ` (em dash) or ` → ` to separate a punchy summary
+ * from the longer "how to apply" sentence. We render the summary in the
+ * column and let the tooltip carry the full text.
+ *
+ *   "Band = cathode — match the stripe on the PCB silkscreen" → "Band = cathode"
+ *   "+ leg (longer) → + marked pad on PCB"                     → "+ leg (longer)"
+ *   "Notch / dot = pin 1"                                      → "Notch / dot = pin 1"
+ *   "Flat side matches the flat on the PCB silkscreen"         → "Flat side"
+ */
+export function orientationHintSummary(hint: string): string {
+  // Cut at the first separator if present.
+  const sepMatch = hint.match(/^([^—→]+?)\s*[—→]/);
+  if (sepMatch) return sepMatch[1].trim();
+  // No separator — keep the first short phrase (max 22 chars on a word boundary).
+  if (hint.length <= 22) return hint;
+  const cut = hint.slice(0, 22);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 8 ? cut.slice(0, lastSpace) : cut) + "…";
+}

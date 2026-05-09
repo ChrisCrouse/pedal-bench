@@ -38,13 +38,11 @@ export function NoKeyCapabilities() {
             guides for 3D printing (via build123d).
           </Item>
           <Item>
-            <strong>BOM editor</strong> with color-coded chips, click-to-tag
-            on the PCB layout, polarity warnings.
-          </Item>
-          <Item>
-            <strong>Bench-tab build-along checklist</strong> — solder-order
-            grouping, polarity warnings on orientation-sensitive rows, live
-            progress bar.
+            <strong>Parts tab</strong> — BOM editor + build checklist in one
+            view: color-coded kind chips, click-to-tag on the PCB layout,
+            solder-order grouping, polarity warnings on orientation-sensitive
+            rows, live progress bar, and an inventory side panel that ticks
+            down as you check off parts.
           </Item>
           <Item>
             <strong>Debug tab</strong> — expected IC pin voltages for the seed

@@ -105,6 +105,8 @@ export interface Project {
   drill_tool_url?: string | null;
   /** When false, this project is excluded from the global shopping list. */
   active: boolean;
+  /** True when the user uploaded a custom PCB layout image (overrides PDF). */
+  has_custom_pcb_image?: boolean;
 }
 
 export interface ProjectSummary {
@@ -113,6 +115,14 @@ export interface ProjectSummary {
   status: Status;
   enclosure: string;
   updated_at: string;
+  active: boolean;
+  bom_count: number;
+  soldered_count: number;
+  /** Parts-ready %: covered / needed across trackable BOM rows.
+   *  Null when there's no trackable BOM yet (vs 100 = fully covered). */
+  readiness_pct: number | null;
+  parts_needed: number;
+  parts_covered: number;
 }
 
 export interface STLExport {
@@ -288,6 +298,10 @@ export interface ShortageRow {
   kind: string;
   value_norm: string;
   value_magnitude: number | null;
+  /** Per-project quantity contribution. Same slugs as `needed_by`, but
+   *  with the qty each project contributes — needed for accurate cost
+   *  rollups when projects need different amounts of the same part. */
+  needed_by_qty: Record<string, number>;
   display_value: string;
   type_hint: string;
   needed: number;
@@ -297,6 +311,10 @@ export interface ShortageRow {
   available: number;
   shortfall: number;
   unit_cost_usd: number | null;
+  /** True when unit_cost_usd came from the static price oracle rather than
+   *  a user-set inventory price. Render with a "~" prefix and a tooltip
+   *  noting it's an estimate. */
+  unit_cost_estimated: boolean;
   supplier: string | null;
   needed_by: string[];
 }
@@ -313,6 +331,10 @@ export const api = {
   },
   inventory: {
     stats: () => request<InventoryStats>("/inventory/stats"),
+    buildability: () =>
+      request<{ buildable: number; total_active: number }>(
+        "/inventory/buildability",
+      ),
     parts: (kind?: string, search?: string) => {
       const qs = new URLSearchParams();
       if (kind) qs.set("kind", kind);
@@ -401,7 +423,9 @@ export const api = {
       }),
     update: (
       slug: string,
-      payload: Partial<Pick<Project, "name" | "status" | "enclosure" | "notes" | "active">>,
+      payload: Partial<
+        Pick<Project, "name" | "status" | "enclosure" | "notes" | "active">
+      >,
     ) =>
       request<Project>(`/projects/${encodeURIComponent(slug)}`, {
         method: "PATCH",
@@ -432,6 +456,15 @@ export const api = {
       ),
     pcbLayoutImageUrl: (slug: string) =>
       `/api/v1/projects/${encodeURIComponent(slug)}/pcb-layout.png`,
+    attachPcbLayoutImage: (slug: string, file: File) =>
+      uploadPdf<{ status: string }>(
+        `/projects/${encodeURIComponent(slug)}/pcb-layout-image`,
+        file,
+      ),
+    deletePcbLayoutImage: (slug: string) =>
+      request<void>(`/projects/${encodeURIComponent(slug)}/pcb-layout-image`, {
+        method: "DELETE",
+      }),
     shortage: (slug: string) =>
       request<Shortage>(`/projects/${encodeURIComponent(slug)}/shortage`),
     consumeReservations: (slug: string) =>

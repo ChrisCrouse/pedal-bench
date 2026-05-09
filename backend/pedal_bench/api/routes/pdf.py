@@ -271,7 +271,7 @@ async def create_project_from_pdf(
         # Re-import here to avoid circular imports at module load.
         from pedal_bench.api.routes.projects import _project_to_out
 
-        return _project_to_out(project)
+        return _project_to_out(project, store)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -342,7 +342,7 @@ async def attach_pdf_to_existing(
     store.save(project)
     from pedal_bench.api.routes.projects import _project_to_out
 
-    return _project_to_out(project)
+    return _project_to_out(project, store)
 
 
 class ReextractBOMOut(BaseModel):
@@ -712,7 +712,7 @@ async def create_project_from_url(
 
         from pedal_bench.api.routes.projects import _project_to_out
 
-        return _project_to_out(project)
+        return _project_to_out(project, store)
     finally:
         tmp_path.unlink(missing_ok=True)
 
@@ -770,4 +770,4 @@ def _create_project_from_taydakits(
     store.save(project)
     from pedal_bench.api.routes.projects import _project_to_out
 
-    return _project_to_out(project)
+    return _project_to_out(project, store)

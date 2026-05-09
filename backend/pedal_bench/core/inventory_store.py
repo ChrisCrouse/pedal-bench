@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 from typing import Iterator
 
+from .inventory_index import normalize_value
 from .models import InventoryItem, inventory_key
 
 
@@ -45,10 +46,27 @@ class InventoryStore:
             if "tracking" in item_dict:
                 migrated = True
             item = InventoryItem.from_dict(item_dict)
+
+            # Re-canonicalize value_norm against the current parser. Old data
+            # written before the latest spec update may still have stale
+            # forms like "1uf" while new BOM lookups produce "1u" — without
+            # this rewrite, a "1uF" inventory item wouldn't match a "1u" BOM
+            # row. Prefer display_value (case-preserved original input) and
+            # fall back to the stored value_norm.
+            if item.kind:
+                source = item.display_value or item.value_norm
+                if source:
+                    fresh = normalize_value(source, item.kind)
+                    if fresh and fresh != item.value_norm:
+                        item.value_norm = fresh
+                        migrated = True
+
             # Re-key by canonical (kind, value_norm) so legacy keys collapse
             # onto the new format. If two legacy keys collide, sum their
             # on_hand and merge reservations.
             canonical = inventory_key(item.kind, item.value_norm) if item.kind and item.value_norm else item.key
+            if canonical != item.key:
+                migrated = True
             if canonical in items:
                 existing = items[canonical]
                 existing.on_hand += item.on_hand

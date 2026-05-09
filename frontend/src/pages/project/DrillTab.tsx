@@ -11,6 +11,7 @@ import {
 } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Select } from "@/components/ui/Select";
 import { EnclosureCanvas } from "@/components/drill/EnclosureCanvas";
 import { HoleInspector } from "@/components/drill/HoleInspector";
 import { PanelArtworkDialog } from "@/components/drill/PanelArtworkDialog";
@@ -43,6 +44,25 @@ export function DrillTab() {
     queryFn: () => api.enclosures.get(project.enclosure),
     enabled: !!project.enclosure,
   });
+
+  // Enclosure preview: local-only "what if I tried a 1590B?" toggle. Doesn't
+  // touch the saved enclosure or holes — when set, the canvas re-renders
+  // against the previewed dimensions but the underlying project is unchanged.
+  const enclosuresList = useQuery({
+    queryKey: ["enclosures"],
+    queryFn: api.enclosures.list,
+    staleTime: Infinity,
+  });
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const previewEnclosure = useQuery({
+    queryKey: ["enclosures", previewKey],
+    queryFn: () => api.enclosures.get(previewKey as string),
+    enabled: !!previewKey && previewKey !== project.enclosure,
+  });
+  const effectiveEnclosure =
+    previewKey && previewKey !== project.enclosure
+      ? previewEnclosure.data
+      : enclosure.data;
 
   const presetsQuery = useQuery({
     queryKey: ["layout-presets"],
@@ -331,6 +351,28 @@ export function DrillTab() {
   const byside: Record<string, number> = {};
   for (const h of holes) byside[h.side] = (byside[h.side] ?? 0) + 1;
 
+  // Count holes that no longer fit when previewing a smaller enclosure. Uses
+  // the same Math.abs(coord)+r > halfDim check the canvas uses for the red
+  // glyph, just rolled up into a banner-friendly number.
+  const previewActive = !!previewKey && previewKey !== project.enclosure;
+  let previewOverflowCount = 0;
+  if (previewActive && effectiveEnclosure) {
+    for (const h of holes) {
+      const f = effectiveEnclosure.faces[h.side];
+      if (!f) {
+        previewOverflowCount += 1;
+        continue;
+      }
+      const r = h.diameter_mm / 2;
+      if (
+        Math.abs(h.x_mm) + r > f.width_mm / 2 ||
+        Math.abs(h.y_mm) + r > f.height_mm / 2
+      ) {
+        previewOverflowCount += 1;
+      }
+    }
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Toolbar */}
@@ -462,6 +504,66 @@ export function DrillTab() {
           </Button>
         </div>
       </div>
+      {/* Preview + PCB outline toolbar — local-only enclosure tryout and
+          board fit check. */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs dark:border-zinc-800 dark:bg-zinc-900/60">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-zinc-600 dark:text-zinc-400">
+            Preview enclosure:
+          </span>
+          <Select
+            value={previewKey ?? project.enclosure}
+            onChange={(e) => {
+              const v = e.target.value;
+              setPreviewKey(v === project.enclosure ? null : v);
+            }}
+            className="min-w-[12rem]"
+          >
+            {enclosuresList.data?.map((e) => (
+              <option key={e.key} value={e.key}>
+                {e.key} — {e.name}
+                {e.key === project.enclosure ? " (saved)" : ""}
+              </option>
+            ))}
+          </Select>
+          {previewKey && previewKey !== project.enclosure && (
+            <>
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-900 dark:bg-amber-900/30 dark:text-amber-300">
+                preview only
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setPreviewKey(null)}
+              >
+                Reset
+              </Button>
+            </>
+          )}
+        </div>
+
+      </div>
+
+      {previewActive && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/50 dark:text-amber-200">
+          Previewing <span className="font-mono font-semibold">{previewKey}</span>{" "}
+          — your saved enclosure is{" "}
+          <span className="font-mono font-semibold">{project.enclosure}</span>.
+          Holes are rendered at their original face-local coordinates.
+          {previewOverflowCount > 0 && (
+            <>
+              {" "}
+              <span className="font-semibold">
+                {previewOverflowCount} hole{previewOverflowCount === 1 ? "" : "s"}{" "}
+                outside the new face bounds
+              </span>{" "}
+              (shown in red — they'll need to be moved if you commit this
+              enclosure).
+            </>
+          )}
+        </div>
+      )}
+
       {project.drill_tool_url && (
         <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-1.5 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
           <span className="font-semibold text-zinc-600 dark:text-zinc-300">
@@ -475,9 +577,9 @@ export function DrillTab() {
 
       {/* Workspace */}
       <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/50">
+        <aside className="w-80 shrink-0 overflow-y-auto border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/50">
           <SmartLayouts
-            enclosure={enclosure.data}
+            enclosure={effectiveEnclosure ?? enclosure.data}
             holes={holes}
             selectedIdx={primaryIdx}
             onReplaceAll={(h) => {
@@ -500,7 +602,7 @@ export function DrillTab() {
 
         <div className="min-w-0 flex-1 bg-white p-4 dark:bg-zinc-900">
           <EnclosureCanvas
-            enclosure={enclosure.data}
+            enclosure={effectiveEnclosure ?? enclosure.data}
             holes={holes}
             selectedIndices={selectedIndices}
             onSelect={setSelectedIndices}
@@ -523,7 +625,7 @@ export function DrillTab() {
             />
           ) : (
             <HoleInspector
-              enclosure={enclosure.data}
+              enclosure={effectiveEnclosure ?? enclosure.data}
               hole={primaryHole}
               onChange={mutateSelected}
               onDelete={deleteSelected}
@@ -824,3 +926,4 @@ function ModeChoice({
     </label>
   );
 }
+

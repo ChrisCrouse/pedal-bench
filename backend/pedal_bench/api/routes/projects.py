@@ -9,6 +9,7 @@ from pedal_bench.api.routes.inventory import (
     consume_reservations_for,
     project_shortage_for,
 )
+from pedal_bench.core.shortage import compute_project_shortage
 from pedal_bench.api.schemas import (
     BOMItemIO,
     BuildProgressIO,
@@ -35,7 +36,15 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 # ---- conversion helpers (core dataclass <-> API schema) -----------------
 
-def _project_to_out(p: Project) -> ProjectOut:
+def _project_to_out(p: Project, store: ProjectStore | None = None) -> ProjectOut:
+    has_custom_pcb_image = False
+    if store is not None:
+        try:
+            has_custom_pcb_image = (
+                store.project_dir(p.slug) / "pcb_layout_custom.png"
+            ).is_file()
+        except Exception:
+            has_custom_pcb_image = False
     return ProjectOut(
         slug=p.slug,
         name=p.name,
@@ -55,13 +64,52 @@ def _project_to_out(p: Project) -> ProjectOut:
         updated_at=p.updated_at,
         drill_tool_url=p.drill_tool_url,
         active=p.active,
+        has_custom_pcb_image=has_custom_pcb_image,
     )
 
 
-def _project_to_summary(p: Project) -> ProjectSummary:
+def _project_to_summary(
+    p: Project, inv: InventoryStore | None = None
+) -> ProjectSummary:
+    """Build a ProjectSummary with readiness stats baked in.
+
+    `inv` is optional so callers that don't need readiness (e.g. raw create
+    response) can skip the inventory load. When supplied, we run the same
+    shortage compute the per-project endpoint uses, which keeps the
+    "covered" math identical across the UI.
+    """
+    bom_count = len(p.bom)
+    soldered_count = len(p.progress.soldered_locations)
+    parts_needed = 0
+    parts_covered = 0
+    readiness_pct: int | None = None
+
+    if inv is not None:
+        rows = compute_project_shortage(p, inv)
+        for row in rows:
+            parts_needed += row.needed
+            # Effective availability for this build = free stock + the share
+            # already reserved for this project. Cap at row.needed so a row
+            # over-reserved elsewhere doesn't inflate coverage.
+            covered_for_row = min(
+                row.needed, row.available + row.reserved_for_self
+            )
+            parts_covered += covered_for_row
+        if parts_needed > 0:
+            readiness_pct = round(100 * parts_covered / parts_needed)
+
     return ProjectSummary(
-        slug=p.slug, name=p.name, status=p.status,
-        enclosure=p.enclosure, updated_at=p.updated_at,
+        slug=p.slug,
+        name=p.name,
+        status=p.status,
+        enclosure=p.enclosure,
+        updated_at=p.updated_at,
+        active=p.active,
+        bom_count=bom_count,
+        soldered_count=soldered_count,
+        readiness_pct=readiness_pct,
+        parts_needed=parts_needed,
+        parts_covered=parts_covered,
     )
 
 
@@ -90,8 +138,12 @@ def _hole_to_out(h: Hole) -> HoleIO:
 @router.get("", response_model=list[ProjectSummary])
 def list_projects(
     store: ProjectStore = Depends(get_project_store),
+    inv: InventoryStore = Depends(get_inventory_store),
 ) -> list[ProjectSummary]:
-    return [_project_to_summary(p) for p in store.iter_projects()]
+    # Inventory is loaded once and reused across every per-project shortage
+    # compute below, so this list endpoint stays O(projects × bom_rows) on
+    # disk reads — same as iterating projects without readiness.
+    return [_project_to_summary(p, inv) for p in store.iter_projects()]
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
@@ -105,7 +157,7 @@ def create_project(
         raise HTTPException(409, str(exc))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    return _project_to_out(p)
+    return _project_to_out(p, store)
 
 
 @router.get("/{slug}", response_model=ProjectOut)
@@ -115,7 +167,7 @@ def get_project(
 ) -> ProjectOut:
     if not store.exists(slug):
         raise HTTPException(404, f"Unknown project {slug!r}")
-    return _project_to_out(store.load(slug))
+    return _project_to_out(store.load(slug), store)
 
 
 @router.patch("/{slug}", response_model=ProjectOut)
@@ -144,7 +196,7 @@ def update_project(
     if payload.active is not None:
         p.active = payload.active
     store.save(p)
-    return _project_to_out(p)
+    return _project_to_out(p, store)
 
 
 @router.delete("/{slug}", status_code=204)

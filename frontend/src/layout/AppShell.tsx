@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/api/client";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { AIStatusPill } from "@/components/ui/AIStatusPill";
+import { ReadinessDot } from "@/components/ui/ReadinessDot";
 
 export function AppShell() {
   const projects = useQuery({
@@ -56,7 +57,10 @@ export function AppShell() {
                   }`
                 }
               >
-                <span className="truncate">{p.name}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <ReadinessDot pct={p.readiness_pct} />
+                  <span className="truncate">{p.name}</span>
+                </span>
                 <StatusBadge status={p.status} />
               </NavLink>
             ))}

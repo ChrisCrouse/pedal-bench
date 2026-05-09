@@ -90,6 +90,7 @@ class ProjectOut(BaseModel):
     updated_at: str
     drill_tool_url: str | None = None
     active: bool = True
+    has_custom_pcb_image: bool = False
 
 
 class ProjectSummary(BaseModel):
@@ -98,6 +99,16 @@ class ProjectSummary(BaseModel):
     status: Status
     enclosure: str = ""
     updated_at: str
+    active: bool = True
+    bom_count: int = 0
+    soldered_count: int = 0
+    # Parts-ready: % of trackable BOM rows whose needs are covered by current
+    # inventory (free stock + this project's own reservations). Null when the
+    # BOM has no trackable rows yet — distinguishes "fresh project, no BOM"
+    # from "fully ready (100%)".
+    readiness_pct: int | None = None
+    parts_needed: int = 0
+    parts_covered: int = 0
 
 
 class ProjectCreate(BaseModel):
@@ -206,8 +217,10 @@ class ShortageRowOut(BaseModel):
     available: int
     shortfall: int
     unit_cost_usd: float | None = None
+    unit_cost_estimated: bool = False
     supplier: str | None = None
     needed_by: list[str]
+    needed_by_qty: dict[str, int] = {}
 
 
 class ShortageOut(BaseModel):

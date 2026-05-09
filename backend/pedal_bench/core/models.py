@@ -259,6 +259,7 @@ class Project:
     # Lets Chris stash future-build ideas without them inflating shortages.
     active: bool = True
 
+
     def touch(self) -> None:
         self.updated_at = now_iso()
 

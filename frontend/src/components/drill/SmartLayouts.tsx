@@ -115,7 +115,7 @@ export function SmartLayouts({
   const faceOptions = (["A", "B", "C", "D", "E"] as Side[]).filter((s) => !!enclosure.faces[s]);
 
   return (
-    <div className="space-y-5 px-4 py-4 text-sm">
+    <div className="space-y-3 px-3 py-3 text-sm">
       <Section title="Placement aids">
         <div className="space-y-2">
           <ToggleRow
@@ -204,7 +204,7 @@ export function SmartLayouts({
       </Section>
 
       <Section title="Potentiometer grid">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-[3.25rem_1fr_1fr] gap-2">
           <LabeledMini label="Face">
             <Select value={gridFace} onChange={(e) => setGridFace(e.target.value as Side)}>
               {faceOptions.map((s) => (
@@ -214,9 +214,7 @@ export function SmartLayouts({
               ))}
             </Select>
           </LabeledMini>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <LabeledMini label="Spacing X (mm)">
+          <LabeledMini label="X spacing" suffix="mm">
             <Input
               type="number"
               step={0.5}
@@ -224,7 +222,7 @@ export function SmartLayouts({
               onChange={(e) => setSpacingX(Number(e.target.value))}
             />
           </LabeledMini>
-          <LabeledMini label="Spacing Y (mm)">
+          <LabeledMini label="Y spacing" suffix="mm">
             <Input
               type="number"
               step={0.5}
@@ -239,7 +237,7 @@ export function SmartLayouts({
       </Section>
 
       <Section title="Jack row">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-[3.25rem_3rem_1fr_1fr] gap-1.5">
           <LabeledMini label="Face">
             <Select value={jackSide} onChange={(e) => setJackSide(e.target.value as Side)}>
               {faceOptions.map((s) => (
@@ -249,7 +247,7 @@ export function SmartLayouts({
               ))}
             </Select>
           </LabeledMini>
-          <LabeledMini label="# of jacks">
+          <LabeledMini label="Count">
             <Input
               type="number"
               step={1}
@@ -259,7 +257,7 @@ export function SmartLayouts({
               onChange={(e) => setJackCount(Math.max(1, Math.floor(Number(e.target.value))))}
             />
           </LabeledMini>
-          <LabeledMini label="Spacing (mm)">
+          <LabeledMini label="Spacing" suffix="mm">
             <Input
               type="number"
               step={0.5}
@@ -267,7 +265,7 @@ export function SmartLayouts({
               onChange={(e) => setJackSpacing(Number(e.target.value))}
             />
           </LabeledMini>
-          <LabeledMini label="Ø (mm)">
+          <LabeledMini label="Diameter" suffix="mm">
             <Input
               type="number"
               step={0.1}
@@ -340,7 +338,7 @@ function DefaultIconPicker({
   onChange: (v: IconKind | null) => void;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-1.5">
+    <div className="grid grid-cols-5 gap-1">
       <IconChip
         label="none"
         color="#a1a1aa"
@@ -426,8 +424,9 @@ function ToggleRow({
 }) {
   return (
     <label
+      title={hint}
       className={[
-        "flex cursor-pointer items-start gap-2 rounded border px-2 py-1.5",
+        "flex cursor-pointer items-center gap-2 rounded border px-2 py-1",
         checked
           ? "border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-900/20"
           : "border-transparent hover:border-zinc-300 dark:hover:border-zinc-700",
@@ -435,16 +434,11 @@ function ToggleRow({
     >
       <input
         type="checkbox"
-        className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+        className="h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <span className="flex-1">
-        <span className="block text-sm">{label}</span>
-        {hint && (
-          <span className="block text-xs text-zinc-500">{hint}</span>
-        )}
-      </span>
+      <span className="flex-1 text-sm leading-tight">{label}</span>
     </label>
   );
 }
@@ -452,19 +446,28 @@ function ToggleRow({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500">
         {title}
       </h4>
-      <div className="space-y-2">{children}</div>
+      <div className="space-y-1.5">{children}</div>
     </section>
   );
 }
 
-function LabeledMini({ label, children }: { label: string; children: React.ReactNode }) {
+function LabeledMini({
+  label,
+  suffix,
+  children,
+}: {
+  label: string;
+  suffix?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className="block">
-      <span className="mb-0.5 block text-[10px] uppercase tracking-wider text-zinc-500">
-        {label}
+    <label className="block min-w-0">
+      <span className="mb-0.5 flex items-baseline justify-between gap-1 text-[10px] uppercase tracking-wider text-zinc-500">
+        <span className="truncate">{label}</span>
+        {suffix && <span className="text-zinc-400 normal-case">{suffix}</span>}
       </span>
       {children}
     </label>

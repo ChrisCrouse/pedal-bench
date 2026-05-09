@@ -40,6 +40,7 @@ from pedal_bench.core.shortage import (
     ShortageRow,
     compute_global_shortage,
     compute_project_shortage,
+    count_buildable_projects,
 )
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
@@ -264,6 +265,19 @@ def global_shortage(
 ) -> ShortageOut:
     rows = compute_global_shortage(store, inv)
     return _shortage_payload(rows)
+
+
+@router.get("/buildability")
+def buildability(
+    inv: InventoryStore = Depends(get_inventory_store),
+    store: ProjectStore = Depends(get_project_store),
+) -> dict[str, int]:
+    """Count of active projects buildable from current stock (greedy alloc).
+
+    See `count_buildable_projects` for the allocation rule.
+    """
+    buildable, total_active = count_buildable_projects(store, inv)
+    return {"buildable": buildable, "total_active": total_active}
 
 
 # ---- helper that the projects router will call (registered on this router) -

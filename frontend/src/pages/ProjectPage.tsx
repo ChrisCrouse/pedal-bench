@@ -5,9 +5,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const TABS = [
   { to: "overview", label: "Overview" },
+  { to: "parts", label: "Parts" },
   { to: "drill", label: "Drill designer" },
-  { to: "bom", label: "BOM" },
-  { to: "bench", label: "Bench" },
   { to: "debug", label: "Debug" },
 ] as const;
 
@@ -66,7 +65,15 @@ export function ProjectPage() {
         </nav>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <Outlet context={{ slug, project: project.data }} />
+        {/* Force a remount whenever the slug changes so child tabs (Overview,
+         *  Parts, Drill, Debug) reset their local form state to the new
+         *  project's data. Without this, `useState(project.name)` etc. keep
+         *  the *previous* project's typed values across navigation, which
+         *  makes `dirty` look stuck-on and Save can clobber Project B with
+         *  Project A's text. */}
+        <div key={slug} className="contents">
+          <Outlet context={{ slug, project: project.data }} />
+        </div>
       </div>
     </div>
   );

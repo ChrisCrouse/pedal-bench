@@ -24,8 +24,11 @@ const ALL_KINDS: ComponentKind[] = [
   "other",
 ];
 
-// v1 only exposes editing for these kinds. Pots/jacks/switches need extra
-// dimensions (taper, shaft, switching config) we haven't designed for yet.
+// Editable kinds in the Owned tab. Pots and switches encode their full
+// description into the value string (B25K, SPDT (On/Off/On)) rather than
+// having a separate subtype field — "B25K" / "A25K" are distinct rows,
+// "SPDT (On/On)" / "SPDT (On/Off/On)" are distinct rows. Knobs and jacks
+// still need richer subtype dimensions and stay deferred.
 const STANDARD_KINDS: ComponentKind[] = [
   "resistor",
   "film-cap",
@@ -33,6 +36,8 @@ const STANDARD_KINDS: ComponentKind[] = [
   "diode",
   "transistor",
   "ic",
+  "pot",
+  "switch",
 ];
 
 type Tab = "owned" | "shopping" | "usage";
@@ -119,7 +124,7 @@ export function InventoryPage() {
   const [tab, setTab] = useState<Tab>("owned");
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-8">
+    <div className="mx-auto max-w-screen-2xl px-6 py-8">
       <div className="mb-4">
         <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
         <p className="mt-1 text-sm text-zinc-500">
@@ -127,6 +132,8 @@ export function InventoryPage() {
           parts are used across your builds.
         </p>
       </div>
+
+      <BuildabilitySummary onJumpToShopping={() => setTab("shopping")} />
 
       <div className="mb-6 flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
         <TabButton active={tab === "owned"} onClick={() => setTab("owned")}>
@@ -143,6 +150,84 @@ export function InventoryPage() {
       {tab === "owned" && <OwnedTab />}
       {tab === "shopping" && <ShoppingTab />}
       {tab === "usage" && <UsageTab />}
+    </div>
+  );
+}
+
+function BuildabilitySummary({
+  onJumpToShopping,
+}: {
+  onJumpToShopping: () => void;
+}) {
+  const q = useQuery({
+    queryKey: ["inventory", "buildability"],
+    queryFn: api.inventory.buildability,
+  });
+
+  // Render a stable-height shell so the page doesn't jump while loading.
+  if (!q.data) {
+    return <div className="mb-4 h-9" aria-hidden />;
+  }
+
+  const { buildable, total_active } = q.data;
+
+  let body: React.ReactNode;
+  if (total_active === 0) {
+    body = (
+      <span className="text-zinc-500">
+        No active projects yet — mark a project active to see buildability.
+      </span>
+    );
+  } else if (buildable === total_active) {
+    body = (
+      <span>
+        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+          All {total_active} active project{total_active === 1 ? "" : "s"}
+        </span>{" "}
+        can be built with current stock.
+      </span>
+    );
+  } else if (buildable === 0) {
+    body = (
+      <span>
+        <span className="font-semibold text-amber-700 dark:text-amber-400">
+          None of your {total_active} active project
+          {total_active === 1 ? "" : "s"}
+        </span>{" "}
+        can be built with current stock —{" "}
+        <button
+          type="button"
+          onClick={onJumpToShopping}
+          className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+        >
+          see Shopping list
+        </button>
+        .
+      </span>
+    );
+  } else {
+    body = (
+      <span>
+        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+          {buildable} of {total_active} active projects
+        </span>{" "}
+        can be built with current stock — the rest need parts from the{" "}
+        <button
+          type="button"
+          onClick={onJumpToShopping}
+          className="font-semibold text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-400"
+        >
+          Shopping list
+        </button>
+        .
+      </span>
+    );
+  }
+
+  return (
+    <div className="mb-4 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <span aria-hidden>🛠</span>
+      <div className="text-zinc-700 dark:text-zinc-200">{body}</div>
     </div>
   );
 }
@@ -193,13 +278,15 @@ function OwnedTab() {
   const stats = useMemo(() => {
     const data = items.data ?? [];
     let onHand = 0;
-    let available = 0;
+    let reserved = 0;
     for (const it of data) {
       onHand += it.on_hand;
-      available += it.available;
+      reserved += it.reserved_total;
     }
-    return { unique: data.length, onHand, available };
+    return { unique: data.length, onHand, reserved };
   }, [items.data]);
+
+  const filtered = !!kindFilter || search.trim().length > 0;
 
   const sortedItems = useMemo(() => {
     const data = items.data ?? [];
@@ -229,18 +316,29 @@ function OwnedTab() {
     });
   }, [items.data, sort]);
 
+  // Inventory mutations need to invalidate both ["inventory"] (Owned table,
+  // global Shopping shortage, OwnedTab counters) AND ["projects"] (per-
+  // project shortage queries that drive Parts-tab availability badges,
+  // Overview readiness card, sidebar heat dots, Home cards). Without the
+  // ["projects"] invalidation those views lag until the next background
+  // refetch — visible as "delay between inventory edit and BOM update".
+  const invalidateInventoryEverywhere = () => {
+    qc.invalidateQueries({ queryKey: ["inventory"] });
+    qc.invalidateQueries({ queryKey: ["projects"] });
+  };
+
   const upsert = useMutation({
     mutationFn: api.inventory.items.upsert,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory"] }),
+    onSuccess: invalidateInventoryEverywhere,
   });
   const patch = useMutation({
     mutationFn: ({ key, on_hand }: { key: string; on_hand: number }) =>
       api.inventory.items.patch(key, { on_hand }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory"] }),
+    onSuccess: invalidateInventoryEverywhere,
   });
   const del = useMutation({
     mutationFn: api.inventory.items.delete,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory"] }),
+    onSuccess: invalidateInventoryEverywhere,
   });
 
   const [draftKind, setDraftKind] = useState<ComponentKind>("resistor");
@@ -277,9 +375,22 @@ function OwnedTab() {
   return (
     <div>
       <div className="mb-6 grid grid-cols-3 gap-3">
-        <StatCard label="Unique parts" value={stats.unique} />
-        <StatCard label="Total on hand" value={stats.onHand} />
-        <StatCard label="Available" value={stats.available} />
+        <StatCard
+          label="Unique parts"
+          value={stats.unique}
+          hint={filtered ? "filtered" : undefined}
+        />
+        <StatCard
+          label="Total on hand"
+          value={stats.onHand}
+          hint={filtered ? "filtered" : undefined}
+        />
+        <StatCard
+          label="Reserved for builds"
+          value={stats.reserved}
+          hint={filtered ? "filtered" : undefined}
+          tooltip="Stock already set aside for a project. Available = On hand − Reserved."
+        />
       </div>
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -471,7 +582,9 @@ function OwnedRow({
           </span>
         </div>
       </td>
-      <td className="px-4 py-2 font-mono">{item.display_value || item.value_norm}</td>
+      <td className="whitespace-nowrap px-4 py-2 font-mono">
+        {item.display_value || item.value_norm}
+      </td>
       <td className="px-4 py-2 text-right font-mono tabular-nums">
         {editing ? (
           <input
@@ -574,6 +687,53 @@ function ShoppingTab() {
     });
   }, [shortage.data, sort]);
   const cost = shortage.data?.estimated_total_cost_usd ?? null;
+  // True when at least one shortfall row got its price from the oracle
+  // rather than a user-set inventory price. Drives "~" prefixes + tooltip.
+  const costHasEstimates = useMemo(
+    () =>
+      (shortage.data?.rows ?? []).some(
+        (r) => r.shortfall > 0 && r.unit_cost_estimated,
+      ),
+    [shortage.data],
+  );
+
+  // Per-project cost rollup. Distribution is proportional to each project's
+  // quantity contribution (from needed_by_qty) — so a build that needs 10 of
+  // a $1 resistor and is competing with a build that needs 1 gets ~91% of
+  // the cost attributed, not 50%. Cost is allocated only across the
+  // shortfall (not the whole need) since that's what you're actually buying.
+  const projectsQuery = useQuery({
+    queryKey: ["projects"],
+    queryFn: api.projects.list,
+  });
+  const costByProject = useMemo(() => {
+    const totals = new Map<string, number>();
+    const estimatedFlag = new Map<string, boolean>();
+    for (const r of shortage.data?.rows ?? []) {
+      if (r.shortfall === 0 || r.unit_cost_usd == null) continue;
+      const totalContribution = Object.values(r.needed_by_qty).reduce(
+        (s, q) => s + q,
+        0,
+      );
+      if (totalContribution <= 0) continue;
+      const rowCost = r.unit_cost_usd * r.shortfall;
+      for (const [slug, qty] of Object.entries(r.needed_by_qty)) {
+        const share = rowCost * (qty / totalContribution);
+        totals.set(slug, (totals.get(slug) ?? 0) + share);
+        if (r.unit_cost_estimated) estimatedFlag.set(slug, true);
+      }
+    }
+    const nameOf = new Map<string, string>();
+    for (const p of projectsQuery.data ?? []) nameOf.set(p.slug, p.name);
+    return [...totals.entries()]
+      .map(([slug, cost]) => ({
+        slug,
+        name: nameOf.get(slug) ?? slug,
+        cost,
+        estimated: estimatedFlag.get(slug) ?? false,
+      }))
+      .sort((a, b) => b.cost - a.cost);
+  }, [shortage.data, projectsQuery.data]);
 
   const stats = useMemo(() => {
     const allRows = shortage.data?.rows ?? [];
@@ -589,7 +749,18 @@ function ShoppingTab() {
         <StatCard label="Total qty to buy" value={stats.totalQty} />
         <StatCard
           label="Est. total cost"
-          value={cost !== null ? `$${cost.toFixed(2)}` : "—"}
+          value={
+            cost !== null
+              ? `${costHasEstimates ? "~" : ""}$${cost.toFixed(2)}`
+              : "—"
+          }
+          tooltip={
+            cost === null
+              ? undefined
+              : costHasEstimates
+                ? "Includes prices estimated from typical Tayda Electronics retail. Set unit costs on inventory items to lock in your actual paid prices."
+                : "Based on unit costs you've set on inventory items."
+          }
         />
       </div>
       <p className="mb-4 text-sm text-zinc-500">
@@ -597,6 +768,40 @@ function ShoppingTab() {
         projects, minus what you already own. Mark a project inactive to keep
         its BOM out of this list.
       </p>
+
+      {costByProject.length > 0 && (
+        <div className="mb-4 rounded-lg border border-zinc-200 bg-white px-4 py-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            Cost by project
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+            {costByProject.map((p) => (
+              <Link
+                key={p.slug}
+                to={`/projects/${p.slug}/parts`}
+                title={
+                  p.estimated
+                    ? "Includes oracle-estimated prices for parts you haven't logged unit costs for"
+                    : undefined
+                }
+                className="inline-flex items-center gap-1.5 text-zinc-700 hover:text-emerald-700 dark:text-zinc-300 dark:hover:text-emerald-400"
+              >
+                <span>{p.name}</span>
+                <span className="font-mono tabular-nums text-zinc-500">
+                  {p.estimated ? "~" : ""}${p.cost.toFixed(2)}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-500">
+            Each row's cost is split across the projects that need it,
+            weighted by how many of that part each project's BOM calls for.
+            A "~" means the cost includes prices estimated from typical
+            Tayda retail — set unit costs on inventory items to lock in
+            your actual paid prices.
+          </p>
+        </div>
+      )}
 
       <div className="rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
         <table className="w-full text-sm">
@@ -660,7 +865,7 @@ function ShortageRowView({ row }: { row: ShortageRow }) {
           </span>
         </div>
       </td>
-      <td className="px-4 py-2 font-mono">{row.display_value}</td>
+      <td className="whitespace-nowrap px-4 py-2 font-mono">{row.display_value}</td>
       <td className="px-4 py-2 text-right font-mono tabular-nums">{row.needed}</td>
       <td className="px-4 py-2 text-right font-mono tabular-nums text-zinc-500">
         {row.on_hand}
@@ -673,7 +878,7 @@ function ShortageRowView({ row }: { row: ShortageRow }) {
           {row.needed_by.map((slug) => (
             <Link
               key={slug}
-              to={`/projects/${slug}/bom`}
+              to={`/projects/${slug}/parts`}
               className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               {slug}
@@ -739,8 +944,16 @@ function UsageTab() {
   return (
     <div>
       <div className="mb-6 grid grid-cols-3 gap-3">
-        <StatCard label="Projects" value={stats.data?.project_count ?? "—"} />
-        <StatCard label="Unique parts" value={stats.data?.unique_parts ?? "—"} />
+        <StatCard
+          label="Active projects"
+          value={stats.data?.project_count ?? "—"}
+          tooltip="Active projects only — inactive ones are excluded from the BOM index."
+        />
+        <StatCard
+          label="Distinct parts in BOMs"
+          value={stats.data?.unique_parts ?? "—"}
+          tooltip="Distinct (kind, value) pairs referenced by any active project's BOM. Includes parts you don't own yet."
+        />
         <StatCard label="Total parts" value={stats.data?.total_parts ?? "—"} />
       </div>
 
@@ -843,11 +1056,35 @@ function UsageTab() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number | string }) {
+function StatCard({
+  label,
+  value,
+  tooltip,
+  hint,
+}: {
+  label: string;
+  value: number | string;
+  tooltip?: string;
+  /** Tiny right-aligned chip next to the label — e.g. "(filtered)" when the
+   *  table's filters narrow the count below the global total. */
+  hint?: string;
+}) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-      <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">
-        {label}
+    <div
+      title={tooltip}
+      className={`rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950 ${
+        tooltip ? "cursor-help" : ""
+      }`}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+          {label}
+        </div>
+        {hint && (
+          <div className="text-[10px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">
+            {hint}
+          </div>
+        )}
       </div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
     </div>
@@ -888,7 +1125,7 @@ function PartRow({
             </span>
           </div>
         </td>
-        <td className="px-4 py-2 font-mono">{part.display_value}</td>
+        <td className="whitespace-nowrap px-4 py-2 font-mono">{part.display_value}</td>
         <td className="px-4 py-2 text-right font-mono tabular-nums">
           {part.total_qty}
         </td>

@@ -6,7 +6,6 @@ import { DecoderPage } from "@/pages/DecoderPage";
 import { InventoryPage } from "@/pages/InventoryPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { BOMTab } from "@/pages/project/BOMTab";
-import { BenchTab } from "@/pages/project/BenchTab";
 import { DebugTab } from "@/pages/project/DebugTab";
 import { DrillTab } from "@/pages/project/DrillTab";
 import { OverviewTab } from "@/pages/project/OverviewTab";
@@ -24,8 +23,11 @@ export function App() {
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<OverviewTab />} />
             <Route path="drill" element={<DrillTab />} />
-            <Route path="bom" element={<BOMTab />} />
-            <Route path="bench" element={<BenchTab />} />
+            <Route path="parts" element={<BOMTab />} />
+            {/* Legacy URLs — both Plan/Build and the older standalone Bench
+             *  tab now live in the unified /parts surface. */}
+            <Route path="bom" element={<Navigate to="../parts" replace />} />
+            <Route path="bench" element={<Navigate to="../parts" replace />} />
             <Route path="debug" element={<DebugTab />} />
           </Route>
         </Route>

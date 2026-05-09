@@ -1,18 +1,30 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { api, type PDFExtractOut } from "@/api/client";
+import { api, type PDFExtractOut, type ProjectSummary, type Status } from "@/api/client";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Dialog } from "@/components/ui/Dialog";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ReadinessDot } from "@/components/ui/ReadinessDot";
 import { PdfDropZone } from "@/components/pdf/PdfDropZone";
 import {
   PdfReviewDialog,
   type PdfReviewSource,
 } from "@/components/pdf/PdfReviewDialog";
+
+/** Build pipeline order: stuff actively in your hands first, "someday"
+ *  builds last. Within a status the most-ready pedal floats up so you can
+ *  see at a glance what's most actionable. */
+const STATUS_PRIORITY: Record<Status, number> = {
+  building: 0,
+  finishing: 1,
+  ordered: 2,
+  planned: 3,
+  done: 4,
+};
 
 export function HomePage() {
   const [newOpen, setNewOpen] = useState(false);
@@ -20,6 +32,23 @@ export function HomePage() {
   const [preview, setPreview] = useState<PDFExtractOut | null>(null);
   const [url, setUrl] = useState("");
   const projects = useQuery({ queryKey: ["projects"], queryFn: api.projects.list });
+
+  // Sort: status priority first (active builds float to the top), then by
+  // readiness desc within a status so the most-buildable one is visible
+  // first. Null readiness sorts as 0 — a project with no BOM yet falls
+  // below partially-stocked builds in the same status bucket.
+  const sortedProjects = useMemo<ProjectSummary[]>(() => {
+    const list = projects.data ?? [];
+    return [...list].sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.status] ?? 99;
+      const pb = STATUS_PRIORITY[b.status] ?? 99;
+      if (pa !== pb) return pa - pb;
+      const ra = a.readiness_pct ?? -1;
+      const rb = b.readiness_pct ?? -1;
+      if (ra !== rb) return rb - ra;
+      return a.name.localeCompare(b.name);
+    });
+  }, [projects.data]);
 
   const extract = useMutation({
     mutationFn: (file: File) => api.pdf.extract(file),
@@ -148,9 +177,9 @@ export function HomePage() {
             </CardBody>
           </Card>
         )}
-        {projects.data && projects.data.length > 0 && (
+        {sortedProjects.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.data.map((p) => (
+            {sortedProjects.map((p) => (
               <Link key={p.slug} to={`/projects/${p.slug}`} className="block">
                 <Card className="transition hover:shadow-md">
                   <CardBody>
@@ -163,6 +192,14 @@ export function HomePage() {
                         </div>
                       </div>
                       <StatusBadge status={p.status} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+                      <ReadinessDot pct={p.readiness_pct} size="lg" />
+                      <span className="text-zinc-500 tabular-nums">
+                        {p.bom_count > 0
+                          ? `${p.soldered_count}/${p.bom_count} soldered`
+                          : "no BOM yet"}
+                      </span>
                     </div>
                   </CardBody>
                 </Card>

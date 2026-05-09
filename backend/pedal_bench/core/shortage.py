@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from .inventory_index import classify, normalize_value
 from .inventory_store import InventoryStore
 from .models import Project, inventory_key
+from .price_oracle import lookup as price_lookup
 from .project_store import ProjectStore
 
 
@@ -35,8 +36,17 @@ class ShortageRow:
     available: int            # on_hand - reservations to other projects (per-project view)
     shortfall: int            # max(0, needed - available)
     unit_cost_usd: float | None
+    # True when unit_cost_usd came from the static price oracle rather than
+    # the user's own InventoryItem.unit_cost_usd. UI surfaces this as a "~"
+    # prefix and an "estimated" tooltip so user-set prices and oracle
+    # estimates never get visually confused.
+    unit_cost_estimated: bool
     supplier: str | None
     needed_by: list[str]      # project slugs (global view); for per-project view, [slug]
+    # Per-project quantity contribution. Drives cost-split rollups like
+    # "which build is driving this $X order" — splitting by count alone
+    # would misattribute when one project wants 10× and another wants 1×.
+    needed_by_qty: dict[str, int]
 
 
 def _aggregate_bom(project: Project) -> dict[tuple[str, str], tuple[int, str, str]]:
@@ -87,6 +97,15 @@ def compute_project_shortage(
             reserved_others = item.reserved_total - reserved_self
             unit_cost = item.unit_cost_usd
             supplier = item.supplier
+        # Oracle fallback: when the user hasn't logged a unit cost on the
+        # inventory item, drop in a ballpark estimate so cost-to-finish has
+        # something to work with. The flag tells the UI to render a "~".
+        unit_cost_estimated = False
+        if unit_cost is None:
+            estimate = price_lookup(kind, value_norm)
+            if estimate is not None:
+                unit_cost = estimate
+                unit_cost_estimated = True
         available = max(0, on_hand - reserved_others)
         shortfall = max(0, needed - available)
         rows.append(
@@ -102,8 +121,10 @@ def compute_project_shortage(
                 available=available,
                 shortfall=shortfall,
                 unit_cost_usd=unit_cost,
+                unit_cost_estimated=unit_cost_estimated,
                 supplier=supplier,
                 needed_by=[project.slug],
+                needed_by_qty={project.slug: needed},
             )
         )
     rows.sort(key=lambda r: (-r.shortfall, r.kind, r.value_norm))
@@ -124,6 +145,9 @@ def compute_global_shortage(
     displays: dict[tuple[str, str], str] = {}
     type_hints: dict[tuple[str, str], str] = {}
     needed_by: dict[tuple[str, str], list[str]] = defaultdict(list)
+    # Quantity contribution per slug — drives accurate per-project cost
+    # rollups on the shopping list.
+    needed_by_qty: dict[tuple[str, str], dict[str, int]] = defaultdict(dict)
 
     for project in project_store.iter_projects():
         if not project.active:
@@ -134,6 +158,9 @@ def compute_global_shortage(
             displays.setdefault(key, display)
             type_hints.setdefault(key, type_hint)
             needed_by[key].append(project.slug)
+            needed_by_qty[key][project.slug] = (
+                needed_by_qty[key].get(project.slug, 0) + qty
+            )
 
     rows: list[ShortageRow] = []
     for (kind, value_norm), needed in totals.items():
@@ -141,6 +168,14 @@ def compute_global_shortage(
         on_hand = item.on_hand if item else 0
         unit_cost = item.unit_cost_usd if item else None
         supplier = item.supplier if item else None
+        # Oracle fallback identical to compute_project_shortage — keep
+        # global-view costs in lockstep with per-project view.
+        unit_cost_estimated = False
+        if unit_cost is None:
+            estimate = price_lookup(kind, value_norm)
+            if estimate is not None:
+                unit_cost = estimate
+                unit_cost_estimated = True
         shortfall = max(0, needed - on_hand)
         rows.append(
             ShortageRow(
@@ -155,12 +190,76 @@ def compute_global_shortage(
                 available=on_hand,
                 shortfall=shortfall,
                 unit_cost_usd=unit_cost,
+                unit_cost_estimated=unit_cost_estimated,
                 supplier=supplier,
                 needed_by=needed_by[(kind, value_norm)],
+                needed_by_qty=needed_by_qty[(kind, value_norm)],
             )
         )
     rows.sort(key=lambda r: (-r.shortfall, r.kind, r.value_norm))
     return rows
 
 
-__all__ = ["ShortageRow", "compute_project_shortage", "compute_global_shortage"]
+def count_buildable_projects(
+    project_store: ProjectStore, inventory: InventoryStore
+) -> tuple[int, int]:
+    """Greedy buildability count across active projects.
+
+    Returns (buildable_count, total_active_count).
+
+    Sorts active projects by updated_at desc, then walks the list deducting
+    each project's needs from a running copy of inventory on-hand. A project
+    counts as buildable if every required (kind, value_norm) has enough free
+    stock at the moment it's evaluated; if so, its needs are subtracted before
+    the next project is evaluated.
+
+    This prevents the naive per-project-independence bug where two projects
+    that each need the last 4×100n caps would both report "buildable" — only
+    one of them actually can be, given shared stock.
+
+    Allocation order is updated_at desc so the most recently touched project
+    gets first dibs. That's a hobbyist heuristic, not an optimal solver — the
+    knapsack version of "max projects buildable" isn't worth it at this scale.
+    """
+    active = [p for p in project_store.iter_projects() if p.active]
+    total_active = len(active)
+    if total_active == 0:
+        return (0, 0)
+
+    # Sort: most recently updated first. Stable on ties.
+    active.sort(key=lambda p: p.updated_at, reverse=True)
+
+    # Running on-hand: copy of inventory we mutate locally. Never touches
+    # the real InventoryStore.
+    running: dict[str, int] = {}
+    for item in inventory.items():
+        running[item.key] = item.on_hand
+
+    buildable = 0
+    for project in active:
+        needs = _aggregate_bom(project)
+        # Two-pass: first verify every need is satisfiable, then deduct.
+        # Without the verify pass we'd partially deduct for a project that
+        # turns out to be unbuildable and starve the next one.
+        ok = True
+        for (kind, value_norm), (qty, _, _) in needs.items():
+            key = inventory_key(kind, value_norm)
+            if running.get(key, 0) < qty:
+                ok = False
+                break
+        if not ok:
+            continue
+        for (kind, value_norm), (qty, _, _) in needs.items():
+            key = inventory_key(kind, value_norm)
+            running[key] = running.get(key, 0) - qty
+        buildable += 1
+
+    return (buildable, total_active)
+
+
+__all__ = [
+    "ShortageRow",
+    "compute_project_shortage",
+    "compute_global_shortage",
+    "count_buildable_projects",
+]
