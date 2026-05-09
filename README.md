@@ -76,6 +76,12 @@ any row to highlight that part on the cached PCB layout, polarity
 warnings on orientation-sensitive rows. Filter chips group by kind so
 you can scan all the resistors at once.
 
+For manually-created projects (no PedalPCB PDF attached), you can
+**upload your own PCB layout image** (PNG / JPG / WebP) right from the
+BOM tab and the same click-to-tag workflow takes over. Useful for
+non-PedalPCB builds, vero/perfboard layouts, or any silkscreen photo
+you want to annotate.
+
 ![BOM tab — color-coded rows beside the cached PedalPCB layout image](screenshots/04-bom.png)
 
 ### Bench mode
@@ -91,13 +97,35 @@ range" highlighting as you type measurements. Audio-probe procedure.
 Common-failure triage organized by symptom. All of this is bench
 reference data shipped with the app, no LLM involved.
 
-### Cross-project inventory
+### Personal inventory + shopping list
 
-Inventory page shows every unique part across all your projects with
-totals — "100K resistor: 12 across 3 projects" — and click any row to
-drill into which projects use it. Value normalization means "100K" and
-"100k Ohm" count as one part. Backed by a SQLite index rebuilt on
-demand from your JSON project store.
+The Inventory page is three tabs around one question: *what can I build
+right now?*
+
+- **Owned** — your physical stock. Editable rows for what you actually
+  have on the shelf, with reservations per project so a build can lock
+  in the parts it needs without losing them to another build's BOM.
+  Live solder consumption draws stock down as you check off rows on the
+  Bench tab.
+- **Shopping list** — needed-across-all-active-projects minus
+  on-hand, with cost-to-finish using your logged unit prices and a
+  static price oracle as fallback (estimated values are flagged with
+  `~`). Cost rolls up per project so you can see which build is
+  driving an order.
+- **Usage** — every distinct part referenced by any active project
+  BOM, expandable per row to see which projects use it. Value
+  normalization joins "100K," "100k Ohm," and "100000" as one part.
+
+A buildability summary above the tabs answers the headline question
+directly: *"3 of 9 active projects can be built with current stock."*
+Greedy allocation across shared parts means the count never
+double-promises — if Project A and Project B both need the last 4
+caps, only one of them is buildable.
+
+Backed by a SQLite index over your JSON project store, rebuilt on
+demand. Inactive projects are excluded from shopping/buildability so
+you can keep PLANNED builds in the sidebar without polluting the parts
+list.
 
 ![Inventory page — every unique part across all builds, expandable per row](screenshots/06-inventory.png)
 
@@ -235,15 +263,17 @@ pedal-bench/
 │   │   │   ├── app.py
 │   │   │   ├── deps.py
 │   │   │   ├── schemas.py
-│   │   │   └── routes/               bom · debug · diagnose · enclosures
-│   │   │                             holes · pdf · photos · projects · stl
-│   │   │                             tayda · verify_component · ai_status
+│   │   │   └── routes/               ai_status · bom · debug · diagnose
+│   │   │                             drill_extract · enclosures · holes
+│   │   │                             inventory · layout_presets · pdf
+│   │   │                             photos · projects · refdes_map · stl
+│   │   │                             tayda · verify_component
 │   │   ├── core/                     models, stores, decoders, hint library
 │   │   ├── io/                       PedalPCB extractors (deterministic + AI)
 │   │   │                             Tayda coords, PDF→image, STL builder
 │   │   └── data/                     enclosures, suppliers, orientation hints,
 │   │                                 debug topologies
-│   └── tests/                        162 pytest cases
+│   └── tests/                        384 pytest cases
 ├── frontend/
 │   └── src/
 │       ├── api/                      typed API client (BYOK header injection)
@@ -274,10 +304,11 @@ npm run test
 
 Backend tests cover value decoders, PedalPCB BOM extraction
 (deterministic + AI parser logic), cross-project SQLite inventory
-index, Tayda coordinate parsing, STL
-generation (watertight meshes + bbox assertions), URL fetcher, AI drill
-/ BOM / diagnosis / component-verify parsers. Drop a real PedalPCB PDF
-at `backend/tests/fixtures/sherwood.pdf` to enable the end-to-end BOM
+index, personal stock + reservations + shortage + buildability,
+solder-consumption ledger, Tayda coordinate parsing, STL generation
+(watertight meshes + bbox assertions), URL fetcher, AI drill / BOM /
+diagnosis / component-verify parsers. Drop a real PedalPCB PDF at
+`backend/tests/fixtures/sherwood.pdf` to enable the end-to-end BOM
 integration test (otherwise auto-skipped).
 
 Frontend typecheck: `npm run typecheck`.
@@ -291,6 +322,8 @@ Frontend typecheck: `npm run typecheck`.
 - [x] Print-ready drill template (with crosshairs) + build-log photos
 - [x] BYOK + public release
 - [x] SQLite-backed cross-project inventory (Inventory page)
+- [x] Personal stock + reservations + shopping list + buildability summary
+- [x] Custom PCB layout image upload (manual projects, no PDF needed)
 - [x] First-class no-AI-key experience (hidden surfaces, neutral pill, capabilities panel)
 - [ ] DigiKey or Octopart integration (free public APIs — Mouser's "free" tier requires sales approval, removed)
 - [ ] Community-corroborated BOMs (requires hosted backend)
