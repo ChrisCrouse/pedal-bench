@@ -52,7 +52,7 @@ export function PdfDropZone({ onFile, disabled = false }: Props) {
         }}
       />
       <div className="text-lg font-semibold">
-        Drop a PedalPCB PDF here
+        Drop a PedalPCB or Aion FX PDF here
       </div>
       <div className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
         or click to browse. We'll auto-extract the pedal name, enclosure, and BOM.

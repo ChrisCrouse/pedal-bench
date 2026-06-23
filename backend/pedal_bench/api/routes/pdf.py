@@ -28,16 +28,23 @@ from pedal_bench.api.deps import (
 from pedal_bench.api.schemas import BOMItemIO, HoleIO, ProjectOut
 from pedal_bench.core.models import Enclosure
 from pedal_bench.core.project_store import ProjectStore
+from pedal_bench.io.aionfx_extract import (
+    extract_build_package as extract_aionfx_build_package,
+    is_aionfx_pdf,
+)
+from pedal_bench.io.aionfx_fetch import AionFXFetchError, fetch_from_url as fetch_aionfx_url
+from pedal_bench.io.aionfx_pdf import AionFXBOMParseError, extract_bom as extract_aionfx_bom
 from pedal_bench.io.ai_bom_extract import extract_bom_with_ai
 from pedal_bench.io.ai_drill_extract import extract_drill_holes_with_ai
-from pedal_bench.io.drill_template_extract import extract_drill_holes
+from pedal_bench.io.build_import import ExtractedBuildPackage
+from pedal_bench.io.drill_template_extract import extract_drill_holes as extract_pedalpcb_drill_holes
 from pedal_bench.io.pedalpcb_pdf import BOMParseError, extract_bom
 from pedal_bench.io.tayda_drill_api import (
     TaydaDrillAPIError,
     fetch_holes as fetch_tayda_drill_holes,
 )
 from pedal_bench.io.pdf_page_image import render_page_to_png
-from pedal_bench.io.pedalpcb_extract import extract_build_package
+from pedal_bench.io.pedalpcb_extract import extract_build_package as extract_pedalpcb_build_package
 from pedal_bench.io.pedalpcb_fetch import PedalPCBFetchError, fetch_from_product_url
 from pedal_bench.io.taydakits_extract import (
     TaydakitsBuildPackage,
@@ -117,6 +124,25 @@ router = APIRouter(prefix="/pdf", tags=["pdf"])
 projects_router = APIRouter(prefix="/projects", tags=["projects"])
 
 
+def _extract_pdf_build_package(
+    pdf_path: Path,
+    enclosure: Enclosure | None = None,
+) -> ExtractedBuildPackage:
+    if is_aionfx_pdf(pdf_path):
+        return extract_aionfx_build_package(pdf_path, enclosure=enclosure)
+    return extract_pedalpcb_build_package(pdf_path, enclosure=enclosure)
+
+
+def _render_pdf_page_if_known(pdf_path: Path, page_index: int | None, output_path: Path, dpi: int | None = None) -> None:
+    if page_index is None:
+        return
+    try:
+        kwargs = {"dpi": dpi} if dpi is not None else {}
+        render_page_to_png(pdf_path, page_index=page_index, output_path=output_path, **kwargs)
+    except Exception:
+        pass
+
+
 class PDFExtractOut(BaseModel):
     suggested_name: str | None
     suggested_enclosure: str | None
@@ -129,6 +155,8 @@ class PDFExtractOut(BaseModel):
     # Workflow hand-offs (e.g. "drill coords aren't auto-imported, do X").
     # Distinct from `warnings`, which means something went wrong.
     next_steps: list[str] = []
+    source_supplier: str | None = None
+    source_url: str | None = None
 
 
 class URLExtractIn(BaseModel):
@@ -161,9 +189,14 @@ async def pdf_extract(
     try:
         # First-pass extract to detect the enclosure; if it's in our
         # catalog, re-run the drill extractor with accurate scaling.
-        pkg = extract_build_package(tmp_path)
-        if pkg.enclosure and pkg.enclosure in catalog and not pkg.holes:
-            scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
+        pkg = _extract_pdf_build_package(tmp_path)
+        if (
+            pkg.source_supplier != "aionfx"
+            and pkg.enclosure
+            and pkg.enclosure in catalog
+            and not pkg.holes
+        ):
+            scaled_holes = extract_pedalpcb_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
             if scaled_holes:
                 pkg.holes = scaled_holes
         _ai_drill_fallback(pkg, tmp_path, catalog, api_key=api_key)
@@ -181,6 +214,8 @@ async def pdf_extract(
         drill_template_page_index=pkg.drill_template_page_index,
         warnings=pkg.warnings,
         next_steps=pkg.next_steps,
+        source_supplier=pkg.source_supplier,
+        source_url=pkg.source_url,
     )
 
 
@@ -208,14 +243,14 @@ async def create_project_from_pdf(
     try:
         # First-pass extract to detect enclosure; then re-run drill
         # extraction with proper scaling so holes land in real mm.
-        pkg = extract_build_package(tmp_path)
+        pkg = _extract_pdf_build_package(tmp_path)
         enclosure_key = (
             enclosure
             or (pkg.enclosure if pkg.enclosure in catalog else "")
             or ""
         ).strip()
-        if enclosure_key in catalog:
-            scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
+        if pkg.source_supplier != "aionfx" and enclosure_key in catalog:
+            scaled_holes = extract_pedalpcb_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
             if scaled_holes:
                 pkg.holes = scaled_holes
         _ai_drill_fallback(
@@ -242,6 +277,8 @@ async def create_project_from_pdf(
         dest_pdf = pdir / "source.pdf"
         dest_pdf.write_bytes(pdf_bytes)
         project.source_pdf = "source.pdf"
+        project.source_supplier = pkg.source_supplier
+        project.source_url = pkg.source_url
 
         # Attach pre-parsed BOM + drill holes.
         project.bom = list(pkg.bom)
@@ -249,22 +286,13 @@ async def create_project_from_pdf(
 
         # Cache the wiring-diagram page as a PNG if we can figure out which
         # page it is. PedalPCB typically has it at page 4 (0-indexed = 3).
-        wiring_page = (
-            pkg.wiring_page_index
-            if pkg.wiring_page_index is not None
-            else 3
-        )
-        try:
-            render_page_to_png(dest_pdf, page_index=wiring_page, output_path=pdir / "wiring.png")
-        except Exception:
-            pass
+        wiring_page = pkg.wiring_page_index if pkg.wiring_page_index is not None else 3
+        _render_pdf_page_if_known(dest_pdf, wiring_page, pdir / "wiring.png")
 
         # Also cache the PCB layout page (page 1, index 0) for the BOM
         # visualizer. Non-fatal if it fails.
-        try:
-            render_page_to_png(dest_pdf, page_index=0, output_path=pdir / "pcb_layout.png", dpi=180)
-        except Exception:
-            pass
+        pcb_page = pkg.pcb_layout_page_index if pkg.pcb_layout_page_index is not None else 0
+        _render_pdf_page_if_known(dest_pdf, pcb_page, pdir / "pcb_layout.png", dpi=180)
 
         store.save(project)
 
@@ -305,21 +333,35 @@ async def attach_pdf_to_existing(
     dest_pdf = pdir / "source.pdf"
     dest_pdf.write_bytes(pdf_bytes)
     project.source_pdf = "source.pdf"
+    pkg_preview: ExtractedBuildPackage | None = None
+    try:
+        pkg_preview = _extract_pdf_build_package(dest_pdf)
+        project.source_supplier = pkg_preview.source_supplier
+        project.source_url = pkg_preview.source_url
+    except Exception:
+        # Keep attach flow resilient even if supplier-specific parsers fail.
+        # Users can still keep the PDF and retry re-extraction later.
+        project.source_supplier = None
+        project.source_url = None
 
-    # Cache wiring diagram (page 4, 0-indexed = 3) + PCB layout (page 1).
-    try:
-        render_page_to_png(dest_pdf, page_index=3, output_path=pdir / "wiring.png")
-    except Exception:
-        pass
-    try:
-        render_page_to_png(dest_pdf, page_index=0, output_path=pdir / "pcb_layout.png", dpi=180)
-    except Exception:
-        pass
+    # Cache wiring diagram + PCB/layout pages when the supplier parser can identify them.
+    wiring_page = (
+        pkg_preview.wiring_page_index if pkg_preview and pkg_preview.wiring_page_index is not None else 3
+    )
+    _render_pdf_page_if_known(dest_pdf, wiring_page, pdir / "wiring.png")
+    pcb_page = (
+        pkg_preview.pcb_layout_page_index if pkg_preview and pkg_preview.pcb_layout_page_index is not None else 0
+    )
+    _render_pdf_page_if_known(dest_pdf, pcb_page, pdir / "pcb_layout.png", dpi=180)
 
     # Try to extract drill holes using the project's enclosure spec.
     encl = catalog.get(project.enclosure) if project.enclosure else None
     try:
-        extracted = extract_drill_holes(dest_pdf, enclosure=encl)
+        extracted = (
+            pkg_preview.holes
+            if pkg_preview and pkg_preview.source_supplier == "aionfx"
+            else extract_pedalpcb_drill_holes(dest_pdf, enclosure=encl)
+        )
         if extracted:
             project.holes = extracted
     except Exception:
@@ -328,8 +370,7 @@ async def attach_pdf_to_existing(
     # AI fallback for image-only or unusually laid-out drill templates.
     if not project.holes and encl is not None:
         try:
-            pkg_preview = extract_build_package(dest_pdf)
-            if pkg_preview.drill_template_page_index is not None:
+            if pkg_preview and pkg_preview.drill_template_page_index is not None:
                 ai_holes = extract_drill_holes_with_ai(
                     dest_pdf, pkg_preview.drill_template_page_index, encl,
                     api_key=api_key,
@@ -384,8 +425,11 @@ def reextract_bom_from_source(
     warnings: list[str] = []
     new_bom = []
     try:
-        new_bom = extract_bom(pdf_path)
-    except BOMParseError as exc:
+        if project.source_supplier == "aionfx" or is_aionfx_pdf(pdf_path):
+            new_bom = extract_aionfx_bom(pdf_path)
+        else:
+            new_bom = extract_bom(pdf_path)
+    except (AionFXBOMParseError, BOMParseError) as exc:
         warnings.append(f"BOM extraction failed: {exc}")
     except Exception as exc:
         warnings.append(f"BOM extraction error: {type(exc).__name__}: {exc}")
@@ -483,6 +527,21 @@ def _is_taydakits_url(url: str) -> bool:
     return host in {"taydakits.com", "www.taydakits.com"}
 
 
+def _is_aionfx_url(url: str) -> bool:
+    from urllib.parse import urlparse
+
+    if not url:
+        return False
+    raw = url.strip()
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw
+    try:
+        host = (urlparse(raw).hostname or "").lower()
+    except Exception:
+        return False
+    return host in {"aionfx.com", "www.aionfx.com"}
+
+
 def _taydakits_pkg_to_response(
     pkg: TaydakitsBuildPackage,
     catalog: dict[str, Enclosure],
@@ -497,6 +556,8 @@ def _taydakits_pkg_to_response(
         drill_template_page_index=None,
         warnings=pkg.warnings,
         next_steps=pkg.next_steps,
+        source_supplier="taydakits",
+        source_url=pkg.source_url,
     )
 
 
@@ -573,6 +634,37 @@ async def pdf_extract_from_url(
             raise HTTPException(400, str(exc)) from exc
         return _taydakits_pkg_to_response(pkg, catalog)
 
+    if _is_aionfx_url(payload.url):
+        try:
+            fetched = fetch_aionfx_url(payload.url)
+        except AionFXFetchError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(fetched.pdf_bytes)
+            tmp_path = Path(tmp.name)
+        try:
+            pkg = extract_aionfx_build_package(tmp_path)
+            pkg.source_url = fetched.source_url
+            _ai_drill_fallback(pkg, tmp_path, catalog, api_key=api_key)
+            _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+        return PDFExtractOut(
+            suggested_name=pkg.title or fetched.suggested_name,
+            suggested_enclosure=pkg.enclosure,
+            enclosure_in_catalog=(pkg.enclosure in catalog) if pkg.enclosure else False,
+            bom=[BOMItemIO(**b.to_dict()) for b in pkg.bom],
+            holes=[HoleIO(**h.to_dict()) for h in pkg.holes],
+            wiring_page_index=pkg.wiring_page_index,
+            drill_template_page_index=pkg.drill_template_page_index,
+            warnings=pkg.warnings,
+            next_steps=pkg.next_steps,
+            source_supplier="aionfx",
+            source_url=fetched.source_url,
+        )
+
     try:
         fetched = fetch_from_product_url(payload.url)
     except PedalPCBFetchError as exc:
@@ -582,9 +674,9 @@ async def pdf_extract_from_url(
         tmp.write(fetched.pdf_bytes)
         tmp_path = Path(tmp.name)
     try:
-        pkg = extract_build_package(tmp_path)
+        pkg = extract_pedalpcb_build_package(tmp_path)
         if pkg.enclosure and pkg.enclosure in catalog and not pkg.holes:
-            scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
+            scaled_holes = extract_pedalpcb_drill_holes(tmp_path, enclosure=catalog[pkg.enclosure])
             if scaled_holes:
                 pkg.holes = scaled_holes
         # If the product page advertises a Tayda drill-tool URL, prefer that
@@ -617,6 +709,8 @@ async def pdf_extract_from_url(
         drill_template_page_index=pkg.drill_template_page_index,
         warnings=pkg.warnings,
         next_steps=pkg.next_steps,
+        source_supplier=pkg.source_supplier,
+        source_url=fetched.product_url,
     )
 
 
@@ -633,6 +727,9 @@ async def create_project_from_url(
     if _is_taydakits_url(payload.url):
         return _create_project_from_taydakits(payload, store, catalog)
 
+    if _is_aionfx_url(payload.url):
+        return _create_project_from_aionfx(payload, store, catalog, api_key)
+
     try:
         fetched = fetch_from_product_url(payload.url)
     except PedalPCBFetchError as exc:
@@ -644,14 +741,14 @@ async def create_project_from_url(
         tmp.write(pdf_bytes)
         tmp_path = Path(tmp.name)
     try:
-        pkg = extract_build_package(tmp_path)
+        pkg = extract_pedalpcb_build_package(tmp_path)
         enclosure_key = (
             payload.enclosure
             or (pkg.enclosure if pkg.enclosure in catalog else "")
             or ""
         ).strip()
         if enclosure_key in catalog:
-            scaled_holes = extract_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
+            scaled_holes = extract_pedalpcb_drill_holes(tmp_path, enclosure=catalog[enclosure_key])
             if scaled_holes:
                 pkg.holes = scaled_holes
         # Tayda drill-API fallback before AI — same rationale as the preview
@@ -695,18 +792,82 @@ async def create_project_from_url(
         project.bom = list(pkg.bom)
         project.holes = list(pkg.holes)
         project.drill_tool_url = fetched.drill_tool_url
+        project.source_supplier = "pedalpcb"
+        project.source_url = fetched.product_url
 
         wiring_page = (
             pkg.wiring_page_index if pkg.wiring_page_index is not None else 3
         )
+        _render_pdf_page_if_known(dest_pdf, wiring_page, pdir / "wiring.png")
+        _render_pdf_page_if_known(dest_pdf, 0, pdir / "pcb_layout.png", dpi=180)
+
+        store.save(project)
+
+        from pedal_bench.api.routes.projects import _project_to_out
+
+        return _project_to_out(project)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _create_project_from_aionfx(
+    payload: URLCreateIn,
+    store: ProjectStore,
+    catalog: dict[str, Enclosure],
+    api_key: str | None,
+) -> ProjectOut:
+    try:
+        fetched = fetch_aionfx_url(payload.url)
+    except AionFXFetchError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(fetched.pdf_bytes)
+        tmp_path = Path(tmp.name)
+    try:
+        pkg = extract_aionfx_build_package(tmp_path)
+        pkg.source_url = fetched.source_url
+        enclosure_key = (
+            payload.enclosure
+            or (pkg.enclosure if pkg.enclosure in catalog else "")
+            or ""
+        ).strip()
+        _ai_drill_fallback(
+            pkg, tmp_path, catalog,
+            enclosure_override=enclosure_key, api_key=api_key,
+        )
+        _ai_bom_fallback(pkg, tmp_path, api_key=api_key)
+
+        effective_name = (
+            payload.name
+            or pkg.title
+            or fetched.suggested_name
+            or _fallback_name(Path(fetched.pdf_url).name)
+        ).strip()
+        if not effective_name:
+            raise HTTPException(400, "Could not determine a project name.")
+
         try:
-            render_page_to_png(dest_pdf, page_index=wiring_page, output_path=pdir / "wiring.png")
-        except Exception:
-            pass
-        try:
-            render_page_to_png(dest_pdf, page_index=0, output_path=pdir / "pcb_layout.png", dpi=180)
-        except Exception:
-            pass
+            project = store.create(effective_name, enclosure=enclosure_key)
+        except FileExistsError:
+            raise HTTPException(
+                409,
+                f"A project named {effective_name!r} already exists. Pick a different name.",
+            )
+
+        pdir = store.project_dir(project.slug)
+        pdir.mkdir(parents=True, exist_ok=True)
+        dest_pdf = pdir / "source.pdf"
+        dest_pdf.write_bytes(fetched.pdf_bytes)
+        project.source_pdf = "source.pdf"
+        project.source_supplier = "aionfx"
+        project.source_url = fetched.source_url
+        project.bom = list(pkg.bom)
+        project.holes = list(pkg.holes)
+
+        _render_pdf_page_if_known(dest_pdf, pkg.wiring_page_index, pdir / "wiring.png")
+        pcb_page = pkg.pcb_layout_page_index if pkg.pcb_layout_page_index is not None else 0
+        _render_pdf_page_if_known(dest_pdf, pcb_page, pdir / "pcb_layout.png", dpi=180)
 
         store.save(project)
 
@@ -759,6 +920,8 @@ def _create_project_from_taydakits(
     project.holes = list(pkg.holes)
     project.source_pdf = None  # no PDF for Taydakits builds
     project.drill_tool_url = pkg.drill_tool_url
+    project.source_supplier = "taydakits"
+    project.source_url = pkg.source_url
 
     if pkg.pcb_layout_image_url:
         _cache_remote_image(pkg.pcb_layout_image_url, pdir / "pcb_layout.png")

@@ -63,6 +63,8 @@ def _project_to_out(p: Project, store: ProjectStore | None = None) -> ProjectOut
         created_at=p.created_at,
         updated_at=p.updated_at,
         drill_tool_url=p.drill_tool_url,
+        source_supplier=p.source_supplier,
+        source_url=p.source_url,
         active=p.active,
         has_custom_pcb_image=has_custom_pcb_image,
     )
